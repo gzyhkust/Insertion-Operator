@@ -62,8 +62,10 @@ void readInput() {
 	ifs >> n;
 	R = new Request[n];
 	for (int i = 0; i < n; ++ i) {
+		cout << i << endl;
 		ifs >> R[i].tim >> R[i].s >> R[i].e >> R[i].com;
 		R[i].len = tree.tdsp(R[i].s,R[i].e,R[i].tim,false);
+		//R[i].len = 1200;
 		R[i].ddl = R[i].tim + R[i].len + ddl;
 		R[i].pr = pr;
 	}
@@ -136,7 +138,7 @@ void assignTaxi(vector<int>& car) {
 		for (int i = 0; i < sz; ++ i) {
 			fit = INF;
 
-			dump_result<< "For request: " << pos << " assignTaxi:" <<  i <<"\n";
+			dump_result<< "For request: " << pos << " assignTaxi: " <<  i <<"ddl: "<<R[pos].ddl<<"\n";
 			dump_result << "taxi schedule: " << "size:"<<W[car[i]].S.size() <<"|  "<< W[car[i]].S << "\n";
 			dump_result << "taxi reach: " << "size:"<<W[car[i]].reach .size() <<"|  "<< W[car[i]].reach  << "\n";
 			try_insertion(W[car[i]], pos, fit, x, y);
@@ -174,12 +176,6 @@ double function_arrival(Worker &w, int i, int j,double arr){
 	}
 	else
 	{
-		// auto psed = w.FunctionTimesegments[i][j].dpt2seg(arr);
-		// double weight = w.FunctionTimesegments[i][j].dpt2wgt(arr,psed);
-		// return arr+weight;
-		//auto psed = w.FunctionTimesegments[i][j-i].dpt2seg(arr);
-		//double weight = w.FunctionTimesegments[i][j-i].dpt2wgt(arr,psed);
-		//return arr+weight;
 		return w.FunctionTimesegments[i][j-i].dpt2arr(arr);
 	}
 }
@@ -208,72 +204,73 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 	for (int i = 0; i <= w.S.size(); ++ i){
 		for (int j = i; j<= w.S.size(); ++j){
 
+			int false_flag = 0;
+
 			if (i == 0 && j ==0){ //case 0:  i==j==0
 
 				tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim,false);
-				numOfTDSP++; 
+				numOfTDSP++;
 				tmp += tree.tdsp(r.s, r.e, tmp,false);
 				numOfTDSP++;
 				if (tmp<=r.ddl && w.num+r.com<=w.cap){ //at least w can pick r
 					tmp += tree.tdsp(r.e, Pos(schedule[0]), tmp,false);
 					numOfTDSP++;
-					if(tmp < ddl[0]){
+					if(tmp <= ddl[0]){
 						opt = function_arrival(w,i,schedule.size() - 1, tmp);
 					}
+					else{false_flag = 1;}
 				}else
 				{
-					break;
+					dump_result << "try_insertion false:" << "\n";
+					dump_result << "try_insertion case 1, i == j ==0 : " << tmp <<" "<< "\n";
+					dump_result << ddl << "\n";  
+					false_flag = 1;
 				}
-				if(opt < delta){
+				if(opt < delta && false_flag == 0){
 					delta = opt; optimanl_i = i; optimanl_j = j;
 					dump_result << "try_insertion case 1, i == j ==0 : " << delta<< "\n"; 				
-					} 
+				} 
 			
 			}else if (i == w.S.size()){ //case 1:  i==j==w.S.size()
 				tmp = reach[reach.size() - 1] + tree.tdsp(Pos(schedule[schedule.size() - 1]), r.s, reach[reach.size() - 1], false);
 				numOfTDSP++;
 				tmp += tree.tdsp(r.s, r.e, tmp,false);
 				numOfTDSP++;
-				if (tmp > r.ddl || picked[i-1]+r.com > w.cap){break;}
+				if (tmp > r.ddl || picked[i-1]+r.com > w.cap){false_flag = 1;}
 				opt = tmp;
-				if(opt<delta){
+				if(opt<delta && false_flag == 0){
 					delta = opt, optimanl_i = i, optimanl_j = j;
 					dump_result << "try_insertion case 2, i == j ==w.s.size() : " << delta<< "\n"; 
-					}
+				}
 			}
 			else{
 
 				if(i == 0){ // arrival time r.s after inserting it 
 					tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim,false);
 					numOfTDSP++;
-					if(w.num+r.com > w.cap){break;} 
+					if(w.num+r.com > w.cap){false_flag = 1;} 
 				}else
 				{	
 					//cout << "try_insertion :" << rid << " case1" <<endl; 
 					tmp = reach[i-1] + tree.tdsp(Pos(schedule[i-1]), r.s, reach[i-1],false);
 					numOfTDSP++;
-					if(picked[i-1]+r.com > w.cap){break;}
+					if(picked[i-1]+r.com > w.cap){false_flag = 1;}
 				}
 
 				if(i == j){ //case 2:  i==j
 					tmp += tree.tdsp(r.s, r.e, tmp,false);
 					numOfTDSP++;
-					if(tmp > r.ddl){break;}
-					// cout << "if(tmp > r.ddl){break;}" << endl;
-					// cout << "try_insertion :" << rid << " case2" <<endl;
-					// cout <<"tmp += tree.tdsp(r.e, Pos(schedule[i]), tmp,false);" <<endl;
+					if(tmp > r.ddl){false_flag = 1;}
 					tmp += tree.tdsp(r.e, Pos(schedule[i]), tmp,false);
 					numOfTDSP++;
 					if (tmp <= ddl[i])
 					{
-						// cout << "opt = function_arrival(w, i,schedule.size() - 1, tmp);" << endl;
-						// cout << i << " " << schedule.size() - 1 << endl;
 						opt = function_arrival(w, i,schedule.size() - 1, tmp);
-						if(opt < delta){
+						if(opt < delta && false_flag == 0){
 							delta = opt, optimanl_i = i, optimanl_j = j;
 							dump_result << "try_insertion case 3, i == j : " << delta<< "\n"; 							
-							}
-					}
+						}
+					}else{false_flag = 1;}
 					
 
 
@@ -284,9 +281,6 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 					numOfTDSP++;
 
 					if (tmp <= ddl[i]){
-						// cout << "try_insertion case 3:" << endl;
-						// cout << "double arrj_1 = function_arrival(w,i,j-1, tmp);" << endl;
-						// cout << i << " " << j-1 <<endl;
 						double arrj_1 = function_arrival(w,i,j-1, tmp);
 						tmp  = arrj_1 + tree.tdsp(Pos(schedule[j-1]), r.e, arrj_1,false);
 						numOfTDSP++;
@@ -294,7 +288,12 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 						{
 							if(tmp < r.ddl){
 								opt = tmp;
-							}else{break;}
+							}else{
+								dump_result << "try_insertion false:" << "\n";
+								dump_result << "try_insertion case 4 5, i == j ==0 : " << tmp <<" "<< "\n";
+								dump_result << ddl << "\n";  
+								false_flag = 1;
+							}
 						
 						}else{
 							tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp,false); 
@@ -306,14 +305,15 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 								// cout << j << " " << schedule.size()-1 <<endl;
 								opt = function_arrival(w, j,schedule.size()-1, tmp);
 								//dump_result << "try_insertion case 5, j == w.s.size() : " << delta<< "\n"; 		
-							}else{break;}
+							}else{false_flag = 1;}
 													
 						}
-						if(opt < delta){
+						if(opt < delta && false_flag == 0){
 							delta = opt, optimanl_i = i, optimanl_j = j;
 							dump_result << "try_insertion case 4,5, general case : " << delta<< "\n"; 							
-							}						
-					}	
+						}	
+											
+					}else{false_flag = 1;}	
 				}				
 			}			
 		}		
@@ -323,9 +323,22 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 	if (w.S.empty())
 	{
+		dump_result <<" insertion:" <<"\n";
+		dump_result << "assign request:" << rid <<" "<< "into:" << optimal_i<<" "<<optimal_j << "\n";
+		dump_result << "before insertion: "<<"\n";
+		dump_result <<  w.S << "\n";
+		dump_result <<  w.reach << "\n";
+		dump_result << w.ddl << "\n";
+
 		w.S.push_back(rid << 1);
 		w.S.push_back(rid << 1 | 1);
 		updateDriverArr(w);
+
+		dump_result <<"after insertion: " <<"\n";
+		dump_result <<  w.S << "\n";
+		dump_result <<  w.reach << "\n";
+		dump_result << w.ddl << "\n";
+
 		return;
 	}
 
@@ -431,32 +444,19 @@ void updateDriverArr(Worker& w){
 	for (int x = 0; x < w.S.size(); ++x)
 	{
 		double tim_x = 0;
-		// cout << "updateDriverArr case1" <<endl;
-		// if(x == 0 and w.pid == Pos(schedule[0])){
-		// 	reach.push_back(tim);
-		// }else if (x == 0)
-		// {
-		// 	// cout << "updateDriverArr case2" <<endl;
-		// 	tim_x = tree.tdsp(w.pid, Pos(schedule[0]), tim, false);
-		// 	numofTDSPInitial++;
-		// 	tim += tim_x;
-		// 	reach.push_back(tim);
 		if(x == 0){
 			tim_x = tree.tdsp(w.pid, Pos(schedule[x]), tim, false);
 			numofTDSPInitial++;
 			tim += tim_x;
-			// cout << "reach.push_back(tim);" <<endl;
+
 			reach.push_back(tim);			
 		}
 		else{
-			// cout << "updateDriverArr case3" <<endl;
-			// cout << schedule <<endl;
+
 			tim_x = tree.tdsp(Pos(schedule[x-1]), Pos(schedule[x]), tim, false);
 			numofTDSPInitial++;
 			tim += tim_x;
-			// cout << "reach.push_back(tim);" <<endl;
-			reach.push_back(tim);
-			// cout << "after reach.push_back(tim);" <<endl;			
+			reach.push_back(tim);	
 		}
 	}
 
@@ -469,36 +469,23 @@ void updateDriverArr(Worker& w){
 		{	
 			PLF PLFy;
 			if(y == x){
-				// cout << "FunctionS.push_back(PLFy);" <<endl;
 				FunctionS.push_back(PLFy);
-				// cout << "after FunctionS.push_back(PLFy);" <<endl;
 			}
 			else if (y == x+1)
 			{
-				double tim_y = tree.tdsp_PLF(Pos(schedule[y-1]),Pos(schedule[y]),reach[y-1],false,PLFy);
+				tree.PLCst(Pos(schedule[y-1]), Pos(schedule[y]), reach[y-1], TMAX, PLFy);
 				numofTDSPInitial++;
 				if(y == x+1){
 					FunctionS.push_back(PLFy);
 				}				
 			}else
 			{
+				
+				tree.PLCst(Pos(schedule[y-1]), Pos(schedule[y]), reach[y-1], TMAX, PLFy);
+				
 				PLF PLFxy;
-				//PLF PLFy;
-				cout << reach[y-1] << endl;
-				double tim_y = tree.tdsp_PLF(Pos(schedule[y-1]),Pos(schedule[y]),reach[y-1],false,PLFy);
 				PLFy.compound(FunctionS[FunctionS.size()-1],PLFxy,Pos(schedule[y-1]));
 				FunctionS.push_back(PLFxy);
-				// cout << "updateDriverArr case5" <<endl;
-				// cout << x << " " << y << endl;
-				// cout << schedule << endl;
-				// cout << PLFy.f->size() << endl;
-				// cout << FunctionS.size() <<endl;
-				// cout << (*(FunctionS.end()-1)).f->size() << endl;
-				// cout << (*(FunctionS.end()-1)).f->size() << endl;
-				// (*(FunctionS.end()-1)).compound(PLFy,PLFxy,Pos(w.S[y-1]));
-
-				// FunctionS[FunctionS.size()-1].compound(PLFy,PLFxy,Pos(schedule[y-1]));
-				// FunctionS.push_back(PLFxy);
 			}
 		}
 		
@@ -506,16 +493,7 @@ void updateDriverArr(Worker& w){
 		FunctionTimesegments.push_back(FunctionS);
 		//cout << "after FunctionTimesegments.push_back(FunctionS);" <<endl;		
 	}
-	//cout << "w.FunctionTimesegments = FunctionTimesegments;" <<endl;
-	//vector<vector<PLF>> WFunctionTimesegment = w.FunctionTimesegments;
-	// w.FunctionTimesegments.clear();
-	// w.FunctionTimesegments.resize(w.S.size());
-	///w.FunctionTimesegments = FunctionTimesegments;
 
-	// cout << "after w.FunctionTimesegments = FunctionTimesegments;" <<endl;
-
-
-	
 	// cout << "vector<double>& ddl = w.ddl;" <<endl;
 	vector<double>& ddl = w.ddl;
 	ddl.clear();
@@ -525,8 +503,7 @@ void updateDriverArr(Worker& w){
 	{
 		if(k == w.S.size() - 1){
 			ddl.insert(ddl.begin(), DDLEndPos(w.S[k]));
-			// cout << ddl.size()<< endl;
-			// cout << k << " " << w.S[k] << endl;	
+
 		}
 		else
 		{	
@@ -536,43 +513,69 @@ void updateDriverArr(Worker& w){
 			if(w.S[k] & 1){
 				opt = DDLEndPos(w.S[k]);
 			}
-			// cout << "w.FunctionTimesegments.size()" << endl;
-			// cout << w.FunctionTimesegments.size() << endl;
-			// cout << w.FunctionTimesegments[k].size() <<endl;
-			// cout << k << " " << k+1 <<endl;
-			// cout << ddl << endl;
 
-			//auto plc = w.FunctionTimesegments[k][k+1];
-			//delat = plc.arr2dpt(ddl[0], plc.f->begin());
+			auto s1 = FunctionTimesegments[k][1].f->begin();
 			
-
-			//delat = w.FunctionTimesegments[k][1].arr2dpt(ddl[k+1], w.FunctionTimesegments[k][1].f->begin());
-			//delat = w.FunctionTimesegments[k][1].arr2dpt(ddl[k+1], w.FunctionTimesegments[k][1].dpt2seg(ddl[ddl.size()-1]));
-			
-			// auto segment = w.FunctionTimesegments[k][1];
-			// for(auto it = segment.f->begin(); it!=segment.f->end()-1; it++){
-			// 	if(it->t < ddl[ddl.size()-1] and segment.dpt2arr(it->t)>= ddl[ddl.size()-1]){
-			// 		delat = segment.arr2dpt(ddl[ddl.size()-1],it);
-			// 		break;
-			// 	}
-			// }
-			auto segment = w.FunctionTimesegments[k][1];
-			auto it = segment.f->begin();
-			while (it!=segment.f->end()-1 and it->t < ddl[ddl.size()-1])
+			if (s1->t + s1->w >= ddl[0])
 			{
-				if(segment.dpt2arr(it->t) >= ddl[ddl.size()-1]){
-					delat = segment.arr2dpt(ddl[ddl.size()-1],it-1);
-					//delat = segment.arr2dpt(ddl[ddl.size()-1],it);
-					break;
-				}
-				it++;
+				delat = ddl[0] - s1->w;
 			}
-			
-						
+			else{
+				while (s1->t + s1->w < ddl[0])
+				{
+					s1++;
+				}
+				auto s2 = s1 - 1;
+
+				if (s1 == FunctionTimesegments[k][1].f->end())
+				{
+					delat = ddl[0] - s1->w;
+				}
+				else{
+
+					double k = (s1->w - s2->w) / (s1->t - s2->t);
+					delat = ( ddl[0] + k*s2->t -s2->w )/(1+k);
+					//delat = s1->t + (s1->t - s2->t) * ((ddl[0] - s1->w)/(s1->w - s2->w));
+				}
+			}
+
 			if(delat < opt){
 				opt = delat;
 			} 
 			ddl.insert(ddl.begin(), opt);
+			
+
+			// auto it = w.FunctionTimesegments[k][1].f->end();
+			// while (it->t > ddl[ddl.size()-1])
+			// {
+			// 	it--;
+			// }
+
+			// //auto s1 = w.FunctionTimesegments[k][1].dpt2seg(reach[k]);
+			// auto s1 = w.FunctionTimesegments[k][1].f->begin();
+
+			// while (s1<=it and s1->t + s1->w < ddl[ddl.size()-1])
+			// {
+				
+			// }
+			
+
+
+
+			
+
+			// auto segment = w.FunctionTimesegments[k][1];
+			// auto it = segment.f->begin();
+			// while (it!=segment.f->end()-1 and it->t < ddl[ddl.size()-1])
+			// {
+			// 	if(segment.dpt2arr(it->t) >= ddl[ddl.size()-1]){
+			// 		delat = segment.arr2dpt(ddl[ddl.size()-1],it-1);
+			// 		//delat = segment.arr2dpt(ddl[ddl.size()-1],it);
+			// 		break;
+			// 	}
+			// 	it++;
+			// }
+			
 		}
 	}
 
