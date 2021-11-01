@@ -139,7 +139,7 @@ void assignTaxi(vector<int>& car) {
 			fit = INF;
 
 			//cout << "try insertion" << endl;
-			dump_result<< "For request: " << pos << " assignTaxi:" <<  i <<"\n";
+			dump_result<< "For request: " << pos << " assignTaxi: " <<  i <<"ddl: "<<R[pos].ddl<<"\n";
 			dump_result << "taxi schedule: " << "size:"<<W[car[i]].S.size() <<"|  "<< W[car[i]].S << "\n";
 			dump_result << "taxi reach: " << "size:"<<W[car[i]].reach .size() <<"|  "<< W[car[i]].reach  << "\n";
 			try_insertion(W[car[i]], pos, fit, x, y);
@@ -196,7 +196,7 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 	for (int i = 0; i <= w.S.size(); ++ i){
 		for (int j = i; j<= w.S.size(); ++j){
 
-			int ddl_flag = 1;
+			int false_flag = 0;
 
 			if (i == 0 && j ==0){ //case 1: i==j==0
 
@@ -206,32 +206,40 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 				numOfTDSP++;
 				if (tmp<=r.ddl && w.num+r.com<=w.cap){ //at least w can pick r
 					tmp += tree.tdsp(r.e, Pos(schedule[0]), tmp,false);
+
+					if (w.S[0] & 1){			  // satisfy all request end at k
+						if(tmp > DDLEndPos(w.S[0])){
+							false_flag = 1;
+						}
+					}
+
 					numOfTDSP++;
 					for(int k = 1; k < w.S.size(); ++k){
 						tmp += tree.tdsp(Pos(schedule[k-1]), Pos(schedule[k]), tmp, false);
 						numOfTDSP++;
 						if (w.S[k] & 1){			  // satisfy all request end at k
-                            if(tmp > DDLEndPos(w.S[k])){
+							if(tmp > DDLEndPos(w.S[k])){
+								false_flag = 1;
                                 break;
                             }
 						}
 					}
 				}else
 				{
-					break;
+					false_flag = 1;
 				}
-				if(tmp<delta){
+				if(tmp<delta && false_flag == 0){
 					delta = tmp, optimanl_i = i, optimanl_j = j;
 					dump_result << "try_insertion case 1, i == j ==0 : " << delta<< "\n"; 
-					}
+				}
 			
 			}else if (i == w.S.size()){ //case 2: i==j==w.S.size()
 				tmp = reach[w.reach.size() - 1] + tree.tdsp(Pos(schedule[w.S.size() - 1]), r.s, reach[w.reach.size() - 1], false);
 				numOfTDSP++;
 				tmp += tree.tdsp(r.s, r.e, tmp,false);
 				numOfTDSP++;
-				if (tmp > r.ddl || picked[i-1]+r.com > w.cap){break;}
-				if(tmp<delta){
+				if (tmp > r.ddl || picked[i-1]+r.com > w.cap){false_flag = 1;}
+				if(tmp<delta and false_flag == 0){
 					delta = tmp, optimanl_i = i, optimanl_j = j;
 					dump_result << "try_insertion case 2, i == j ==w.s.size() : " << delta<< "\n";  				
 				}
@@ -241,35 +249,37 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 				if(i == 0){ // arrival time r.s after inserting it 
 					tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim,false);
 					numOfTDSP++;
-					if(w.num+r.com > w.cap){break;} 
+					if(w.num+r.com > w.cap){false_flag = 1;} 
 				}else
 				{
 					tmp = reach[i-1] + tree.tdsp(Pos(schedule[i-1]), r.s, reach[i-1],false);
 					numOfTDSP++;
-					if(picked[i-1]+r.com > w.cap){break;}
+					if(picked[i-1]+r.com > w.cap){false_flag = 1;}
 				}
 
 				if(i == j){ //case 3: i==j
 					tmp += tree.tdsp(r.s, r.e, tmp,false);
 					numOfTDSP++;
-					if(tmp > r.ddl){break;}
+					if(tmp > r.ddl){false_flag = 1;}
 					tmp += tree.tdsp(r.e, Pos(schedule[i]), tmp,false);
                     numOfTDSP++;
 					if(w.S[i] & 1){
-                        if(tmp > DDLEndPos(w.S[i])){break;}
+                        if(tmp > DDLEndPos(w.S[i])){false_flag = 1;}
                     }
 					for (int k = i+1; k < w.S.size(); ++k){
 						tmp += tree.tdsp(Pos(schedule[k-1]), Pos(schedule[k]),tmp,false);
 						numOfTDSP++;
 						if (w.S[k] & 1){			
-							if(tmp > DDLEndPos(w.S[k])){break;} 
+							if(tmp > DDLEndPos(w.S[k])){
+								false_flag = 1;
+								break;
+							} 
 						}
 					}
-					if(tmp < delta){
+					if(tmp < delta && false_flag == 0){
 						delta = tmp, optimanl_i = i, optimanl_j = j;
 						dump_result << "try_insertion case 3, i == j : " << delta<< "\n";
-						
-						}
+					}
 
 				}
 				
@@ -278,14 +288,17 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 					tmp += tree.tdsp(r.s, Pos(schedule[i]), tmp,false);
                     numOfTDSP++;
 					if(w.S[i] & 1){
-                        if(tmp > DDLEndPos(w.S[i])){break;}
+                        if(tmp > DDLEndPos(w.S[i])){false_flag = 1;}
                     }
 					for(int k = i+1; k < w.S.size(); ++k){
 
 						if(k == j){
 							tmp += tree.tdsp(Pos(schedule[k-1]), r.e, tmp,false);
 							numOfTDSP++;
-							if(tmp > r.ddl){break;} 
+							if(tmp > r.ddl){
+								false_flag = 1;
+								break;
+							} 
 							tmp += tree.tdsp(r.e, Pos(schedule[k]),tmp,false);							
 							numOfTDSP++;
 						}
@@ -295,15 +308,18 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 							numOfTDSP++;
 						}
 						if (w.S[k] & 1){		
-							if(tmp > DDLEndPos(w.S[k])){break;}
+							if(tmp > DDLEndPos(w.S[k])){
+								false_flag = 1;
+								break;
+							}
 						}	
 					}
 					if(j == w.S.size()){//case 5: i in general, j==w.s.size();
 						tmp += tree.tdsp(Pos(schedule[schedule.size()-1]), r.e, tmp, false);
-						//dump_result << "try_insertion case 5, j ==w.s.size() :" << "\n"; 
-						if(tmp>r.ddl){break;}
+						// dump_result << "try_insertion case 5, j ==w.s.size() :" << "\n"; 
+						if(tmp>r.ddl){false_flag = 1;}
 					}
-					if (tmp < delta){
+					if (tmp < delta and false_flag == 0){
 						delta = tmp, optimanl_i = i, optimanl_j = j;
 						dump_result << "try_insertion case 4,5, general case : " << delta<< "\n"; 
 						}						
@@ -316,9 +332,40 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 	if (w.S.empty())
 	{
+		dump_result <<" insertion:" <<"\n";
+		dump_result << "assign request:" << rid <<" "<< "into:" << optimal_i<<" "<<optimal_j << "\n";
+		dump_result << "before insertion: "<<"\n";
+		dump_result <<  w.S << "\n";
+		dump_result <<  w.reach << "\n";
+		vector<double> ddl;
+		for(int i = 0; i<w.S.size(); i++){
+			if(w.S[i] & 1){
+				ddl.push_back(DDLEndPos(w.S[i]));
+			}
+			else{ddl.push_back(0);}
+		}
+		dump_result << ddl << "\n";
+
 		w.S.push_back(rid << 1);
 		w.S.push_back(rid << 1 | 1);
 		updateDriverArr(w);
+
+		cout << "after insertion: " << optimal_i << " " << optimal_j <<endl;
+		cout <<  w.S << endl;
+		cout <<  w.reach << endl;
+		cout << "------------------------------------" << endl;
+		dump_result <<"after insertion: " <<"\n";
+		dump_result <<  w.S << "\n";
+		dump_result <<  w.reach << "\n";
+		vector<double> ddl_;
+		for(int i = 0; i<w.S.size(); i++){
+			if(w.S[i] & 1){
+				ddl_.push_back(DDLEndPos(w.S[i]));
+			}
+			else{ddl_.push_back(0);}
+		}
+		dump_result << ddl_ << "\n";
+
 		return;
 	}
 
