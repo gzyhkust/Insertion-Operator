@@ -110,7 +110,7 @@ void updateDriver(int i, double t){
 			w.num += R[w.S[0] >> 1].com;
 		}
 
-		w.trajectory.push_back(tuple<int,int,double>(Pos(w.S[0]), w.S[0], w.reach[0]));
+		//w.trajectory.push_back(tuple<int,int,double>(Pos(w.S[0]), w.S[0], w.reach[0]));
 		w.pop();
 	}
 	if (w.tim < t)
@@ -132,6 +132,8 @@ void assignTaxi(vector<int>& car) {
 	int sz = car.size(), id = -1;
 	int optimal_i, optimal_j, x, y;
 	
+
+	clock_t assignbegin = clock();
 	if (R[pos].len < INF) {
 		for (int i = 0; i < sz; ++ i) {
 			fit = INF;
@@ -160,6 +162,10 @@ void assignTaxi(vector<int>& car) {
 		cout << "Assigin request: " << pos << endl;
         insertion(W[id], pos, id, optimal_i, optimal_j);
 	}
+
+	clock_t afterassignbegin = clock();
+	cout << "assighn \t time cost: " + to_string((afterassignbegin - assignbegin) / CLOCKS_PER_SEC) + "s" << endl;
+
 	pos++;
 	dump_result << "******************************************Finish request***************************************" << "\n"; 
 }
@@ -335,18 +341,29 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 			}
 			else{
 				tmp = function_arrival(w, delta_i, j-1, det_i);
-				if(tmp <= ddl[j-1]){
-					tmp += tree.tdsp(Pos(schedule[j-1]), r.e, tmp, false);
-					if(tmp <= r.ddl){
-						tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp, false);
-						tmp = function_arrival(w, j, schedule.size()-1, tmp);
-						if(tmp < delta){
-							delta = tmp;
-							optimanl_i = delta_i;
-							optimanl_j = j;
-						}
+
+				tmp += tree.tdsp(Pos(schedule[j-1]), r.e, tmp, false);
+				if(tmp <= r.ddl){
+					tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp, false);
+					tmp = function_arrival(w, j, schedule.size()-1, tmp);
+					if(tmp < delta){
+						delta = tmp;
+						optimanl_i = delta_i;
+						optimanl_j = j;
 					}
 				}
+				// if(tmp <= ddl[j-1]){
+				// 	tmp += tree.tdsp(Pos(schedule[j-1]), r.e, tmp, false);
+				// 	if(tmp <= r.ddl){
+				// 		tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp, false);
+				// 		tmp = function_arrival(w, j, schedule.size()-1, tmp);
+				// 		if(tmp < delta){
+				// 			delta = tmp;
+				// 			optimanl_i = delta_i;
+				// 			optimanl_j = j;
+				// 		}
+				// 	}
+				// }
 			}
 
 
@@ -549,12 +566,6 @@ void updateDriverArr(Worker& w){
 				if(y == x+1){
 
 					int x = 0;
-					// auto s = PLFy.f->begin();
-					// while (s->t <= ddl[y])
-					// {
-					// 	s ++;
-					// 	x ++;
-					// }
 					FunctionS.push_back(PLFy);
 					range.push_back(x);
 				}				
@@ -565,13 +576,6 @@ void updateDriverArr(Worker& w){
 
 
 				int x = 0;
-				// auto s = PLFy.f->begin();
-				// while (s->t <= ddl[y])
-				// {
-				// 	s ++;
-				// 	x ++;
-				// }	
-
 				PLF PLFxy;
 				PLFy.compound(FunctionS[FunctionS.size()-1],PLFxy,Pos(schedule[y-1]));
 				range.push_back(x);
@@ -579,10 +583,7 @@ void updateDriverArr(Worker& w){
 			}
 		}
 		
-		//cout << "FunctionTimesegments.push_back(FunctionS);" <<endl;
-		FunctionTimesegments.push_back(FunctionS);
-		//functionRange.push_back(range);
-		//cout << "after FunctionTimesegments.push_back(FunctionS);" <<endl;		
+		FunctionTimesegments.push_back(FunctionS);		
 	}
 
 	//o(n) uodate ddl
@@ -675,17 +676,17 @@ void freeMemory() {
 
 void recordTrajectory(){
 
-	ofstream dump_trajectory("/Users/gongcengyang/Desktop/Research/InsertionTimeDepedent/Insertion/n/Data/trajectory.txt");
+	ofstream dump_trajectory("/homes/zgongae/n/trajectory.txt");
 	for (int i = 0; i < m; i++)
 	{
 		Worker& w = W[i];
-		//cout << "Taxi: " << i <<endl;
+		cout << "Taxi: " << i <<endl;
 		dump_trajectory << "Taxi: " << i << "  #"<< w.trajectory.size()/2 <<"\n";
 		for(auto& tuple: w.trajectory){
-			//cout << "Arrival node: "<<get<0>(tuple) << "  at time: " << get<2>(tuple) << endl;
+			cout << "Arrival node: "<<get<0>(tuple) << "  at time: " << get<2>(tuple) << endl;
 			dump_trajectory << "Arrival node: "<<get<0>(tuple)<<" "<<get<1>(tuple) << "  at time: " << get<2>(tuple) <<"\n";
 		}
-		//cout << " --------------------------------------------- " <<endl;
+		cout << " --------------------------------------------- " <<endl;
 	}
 	
 	cout << numOfTDSP << endl;
