@@ -11,6 +11,7 @@ Worker* W = NULL;
 vector<vertex> vertices;
 TDGT tree;
 
+ofstream loginsertion(insertion_log_n3);
 //////////////////// result metric
 int carnum = 0, cartime = 0;
 double assigntime = 0; int assignnum = 0;
@@ -100,13 +101,8 @@ void readInput() {
 	cout << "R = new Request[n];" << endl;
 	for (int i = 0; i < n; ++ i) {
 		ifs >> R[i].tim >> R[i].s >> R[i].e >> R[i].len >>R[i].com;
-		//R[i].ddl = TMAX - 1;
-		//R[i].ddl = R[i].tim + R[i].len * delta;
-		R[i].ddl = R[i].tim + R[i].len + deltasecond;
-		if (R[i].ddl > TMAX)
-		{
-			R[i].ddl  = TMAX - 1;
-		}
+		R[i].ddl = R[i].tim + R[i].len * delta;
+		//R[i].ddl = R[i].tim + R[i].len + deltasecond;
 	}
 	ifs.close();
 	cout << "end request" << endl;
@@ -294,6 +290,30 @@ vector<int> single_search(int s, double ddl) {
 	return ret;
 }
 //////////////////////////////////////////////////////////
+int PickedNum(Worker &w, int picked, int i)
+{
+	if (w.S[i] & 1)
+	{
+		picked -= R[w.S[i] >> 1].com;
+	}
+	else
+	{
+		picked += R[w.S[i] >> 1].com;
+	}
+	return picked;	
+}
+
+int PickedFalse(Worker &w, int num)
+{
+	if (num > w.cap)
+	{
+		return 0;
+	}
+	else
+	{
+		return 1;
+	}
+}
 void timeDependentInsertion(){
 	while (pos<n)
 	{
@@ -310,10 +330,15 @@ void timeDependentInsertion(){
 		cout << "Assign request: " << pos <<"  with car size: "<< car.size() << endl;
 		cout << W[0].S << endl;
 		cout << R[pos].s << " "<< R[pos].e << " " << endl;
+
+		loginsertion << "Assign request: " << pos <<"  with car size: "<< car.size() << "\n";
+		loginsertion << R[pos].s << " "<< R[pos].e << " " <<" " << R[pos].ddl << "\n";
+
 		assignbegin = clock();
 		assignTaxi(car);
 		assignend = clock();
 		cout << "**********************************************************************" <<endl;
+		loginsertion << "**********************************************************************" << "\n";
 		assigntime += double(assignend - assignbegin) / CLOCKS_PER_SEC;
 	}
 	for (int i = 0; i < m; ++i){
@@ -334,11 +359,10 @@ void updateDriver(int i, double t){
 
 		if (w.S[0] & 1) {
 			w.num -= R[w.S[0] >> 1].com;
-			//mcnt ++;
 		} else {
 			w.num += R[w.S[0] >> 1].com;
 		}
-		//w.trajectory.push_back(tuple<int,int,double>(Pos(w.S[0]), w.S[0], w.reach[0]));
+
 		w.pop();
 	}
 	if (w.tim < t)
@@ -350,9 +374,6 @@ void updateDriver(int i, double t){
 
 int Pos(int x) {
 	return (x&1) ? R[x>>1].e : R[x>>1].s;
-}
-double DDLEndPos(int x){
-    return R[x>>1].ddl; 
 }
 
 void assignTaxi(vector<int>& car) {
@@ -370,7 +391,6 @@ void assignTaxi(vector<int>& car) {
 				insertionbegin = clock();
 				try_insertion(W[car[i]], pos, fit, x, y);
 				insertionend = clock();
-				//cout << "try insertion time: " << double(insertionend - insertionbegin) / CLOCKS_PER_SEC << endl;
 				insertiontime += double(insertionend - insertionbegin) / CLOCKS_PER_SEC;
 
 				if (fit < INF) {
@@ -387,7 +407,6 @@ void assignTaxi(vector<int>& car) {
 	}
 	
 	if (id > -1) {
-		//cout << "Assigin request: " << pos << endl;
         insertion(W[id], pos, id, optimal_i, optimal_j);
 		serverPassenger++;
 	}
@@ -522,138 +541,281 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 		return;
 	}
 
-	vector<int>& picked = w.picked;
 	vector<int>& schedule = w.S;
 	vector<double>& reach = w.reach;
-	double tmp = 0;
 	for (int i = 0; i <= w.S.size(); ++ i){
-		for (int j = i; j<= w.S.size(); ++j){
+		for (int j = i; j<= w.S.size(); ++j){	
 
-			int false_flag = 0;
+			loginsertion << "*****************************************" << "\n";
+			loginsertion << "try_insertion: " << i << " " << j << "\n";
+
+			double tmp = INF;
+			int picked = w.num;
+			int capconstrain = 1;
+			int ddlconstrain = 1;
 
 			if (i == 0 && j ==0){ //case 1: i==j==0
 
 				tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim,false);
-				numOfTDSP++; 
-				tmp += tree.tdsp(r.s, r.e, tmp,false);
+				loginsertion << "r.s  tree.tdsp(" << w.pid << "," << r.s <<"): " << tmp << "\n";
 				numOfTDSP++;
-				if (tmp<=r.ddl && w.num+r.com<=w.cap){ //at least w can pick r
+				picked += r.com;
+				if (PickedFalse(w,picked) == 0)
+				{
+					loginsertion <<"cap false (r.s): "<< schedule[i] <<" "<< picked << "\n";
+					capconstrain = 0;
+					break;
+				}				 
+				tmp += tree.tdsp(r.s, r.e, tmp,false);
+				loginsertion << "r.e  tree.tdsp(" << r.s << "," << r.e <<"): " << tmp << "\n";
+				numOfTDSP++;
+				picked -= r.com;
+				if (tmp<=r.ddl && picked<=w.cap){
 					tmp += tree.tdsp(r.e, Pos(schedule[0]), tmp,false);
-					if (w.S[0] & 1){			  // satisfy all request end at k
-						if(tmp > DDLEndPos(w.S[0])){
-							false_flag = 1;
-						}
+					loginsertion << "schedule[i]  tree.tdsp(" << r.e << "," << schedule[0] <<"): " << tmp << "\n";
+					numOfTDSP++;
+					picked = PickedNum(w,picked,0);
+					if (PickedFalse(w,picked) == 0)
+					{
+						loginsertion <<"cap false (i): "<< schedule[i] <<" "<< picked << "\n";
+						capconstrain = 0;
+						break;
+					}	
+					if ((w.S[0] & 1) && (tmp > R[w.S[0]>>1].ddl)){			  // satisfy request end at k
+						loginsertion <<"ddl false (i): "<< schedule[i] << " " << tmp << " " << R[w.S[0]>>1].ddl << "\n";
+						continue;
+					}
+					
+					if (i == w.S.size() - 1 && capconstrain == 1 && tmp < delta)
+					{
+						loginsertion <<"update delta"<< tmp << " " << i <<"  "<<j<< "\n";
+						delta = tmp, optimanl_i = i, optimanl_j = j;
+						continue;						
 					}
 
-					numOfTDSP++;
 					for(int k = 1; k < w.S.size(); ++k){
+						
+						picked = PickedNum(w,picked,k);
+						if (PickedFalse(w,picked) == 0)
+						{
+							loginsertion <<"cap false (k): "<< schedule[k] <<" "<< picked << "\n";
+							capconstrain = 0;
+							break;
+						}						
+						
 						tmp += tree.tdsp(Pos(schedule[k-1]), Pos(schedule[k]), tmp, false);
+						loginsertion << "schedule[k]  tree.tdsp(" << schedule[k-1] << "," << schedule[k] <<"): " << tmp << "\n";
 						numOfTDSP++;
-						if (w.S[k] & 1){			  // satisfy all request end at k
-							if(tmp > DDLEndPos(w.S[k])){
-								false_flag = 1;
-                                break;
-                            }
+						
+						if ((w.S[k] & 1) && (tmp > R[w.S[k]>>1].ddl)){			  // satisfy all request end at k
+							loginsertion <<"ddl false (k): "<< schedule[k] << " " << tmp << " " << R[w.S[k]>>1].ddl <<  "\n";
+							break;
 						}
+						if (k == w.S.size() - 1 && capconstrain == 1 && tmp < delta)
+						{
+							loginsertion <<"update delta"<< tmp << " " << i <<"  "<<j<< "\n";
+							delta = tmp, optimanl_i = i, optimanl_j = j;
+						}
+						
 					}
-				}else
-				{
-					false_flag = 1;
-				}
-				if(tmp<delta && false_flag == 0){
-					delta = tmp, optimanl_i = i, optimanl_j = j;
 				}
 			
 			}else if (i == w.S.size()){ //case 2: i==j==w.S.size()
 				tmp = reach[w.reach.size() - 1] + tree.tdsp(Pos(schedule[w.S.size() - 1]), r.s, reach[w.reach.size() - 1], false);
+				loginsertion << "r.s  tree.tdsp(" << schedule[w.S.size() - 1] << "," << r.s <<"): " << tmp << "\n";
 				numOfTDSP++;
 				tmp += tree.tdsp(r.s, r.e, tmp,false);
+				loginsertion << "r.e  tree.tdsp(" << r.s << "," << r.e <<"): " << tmp << "\n";
 				numOfTDSP++;
-				if (tmp > r.ddl || picked[i-1]+r.com > w.cap){false_flag = 1;}
-				if(tmp<delta and false_flag == 0){
+				if(tmp<delta && tmp <= r.ddl && r.com <= w.cap)
+				{
+					loginsertion <<"update delta"<< tmp << " " << i <<"  "<<j<< "\n";
 					delta = tmp, optimanl_i = i, optimanl_j = j;  				
 				}
 			}
+
 			else{
 
 				if(i == 0){ // arrival time r.s after inserting it 
 					tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim,false);
+					loginsertion << "r.s  tree.tdsp(" << w.pid << "," << r.s <<"): " << tmp << "\n";
 					numOfTDSP++;
-					if(w.num+r.com > w.cap){false_flag = 1;} 
-				}else
+					picked += r.com;
+					if (PickedFalse(w,picked) == 0)
+					{
+						loginsertion <<"cap false (r.s): "<<schedule[i]<<" "<< picked << "\n";
+						capconstrain = 0;
+						break;
+					}
+				}
+				else
 				{
 					tmp = reach[i-1] + tree.tdsp(Pos(schedule[i-1]), r.s, reach[i-1],false);
+					loginsertion << "r.s  tree.tdsp(" << schedule[i-1] << "," << r.s <<"): " << tmp << "\n";
 					numOfTDSP++;
-					if(picked[i-1]+r.com > w.cap){false_flag = 1;}
+					for (int k = 0; k < i; k++)
+					{
+						picked = PickedNum(w,picked,k);
+					}
+					picked += r.com;
+					if (PickedFalse(w,picked) == 0)
+					{
+						loginsertion <<"cap false (r.s): "<<schedule[i]<<" "<< picked << "\n";
+						capconstrain = 0;
+						break;
+					}
 				}
+
+				
 
 				if(i == j){ //case 3: i==j
-					tmp += tree.tdsp(r.s, r.e, tmp,false);
-					numOfTDSP++;
-					if(tmp > r.ddl){false_flag = 1;}
-					tmp += tree.tdsp(r.e, Pos(schedule[i]), tmp,false);
-                    numOfTDSP++;
-					if(w.S[i] & 1){
-                        if(tmp > DDLEndPos(w.S[i])){false_flag = 1;}
-                    }
-					for (int k = i+1; k < w.S.size(); ++k){
-						tmp += tree.tdsp(Pos(schedule[k-1]), Pos(schedule[k]),tmp,false);
-						numOfTDSP++;
-						if (w.S[k] & 1){			
-							if(tmp > DDLEndPos(w.S[k])){
-								false_flag = 1;
-								break;
-							} 
-						}
-					}
-					if(tmp < delta && false_flag == 0){
-						delta = tmp, optimanl_i = i, optimanl_j = j;
-					}
 
+
+					tmp += tree.tdsp(r.s, r.e, tmp,false);
+					loginsertion << "r.e  tree.tdsp(" << r.s << "," << r.e <<"): " << tmp << "\n";
+					numOfTDSP++;
+					picked -= r.com;
+					if(tmp > r.ddl){
+						loginsertion <<"ddl false(r.e)"<< tmp << " " << r.ddl << "\n";
+						continue;
+					}
+					tmp += tree.tdsp(r.e, Pos(schedule[i]), tmp,false);
+					loginsertion << "schedule[i]  tree.tdsp(" << r.e << "," << schedule[i] <<"): " << tmp << "\n";
+                    numOfTDSP++;
+
+					picked = PickedNum(w,picked,i);
+					if (PickedFalse(w,picked) == 0)
+					{
+						loginsertion <<"cap false (i): "<< schedule[i] <<" "<< picked << "\n";
+						capconstrain = 0;
+						break;
+					}
+					
+					if((w.S[i] & 1) && (tmp > R[w.S[i]>>1].ddl)){
+						loginsertion <<"ddl false (i): "<< schedule[i] << " " << tmp << " " << R[w.S[i]>>1].ddl<< "\n";
+						continue;
+                    }
+					
+					if (i == w.S.size() - 1 && tmp < delta)
+					{
+						loginsertion <<"update delta"<< tmp << " " << i <<"  "<<j<< "\n";
+						delta = tmp, optimanl_i = i, optimanl_j = j;
+						continue;						
+					}
+					
+					for (int k = i+1; k < w.S.size(); ++k){
+
+						picked = PickedNum(w,picked,k);
+						if (PickedFalse(w,picked) == 0)
+						{
+							loginsertion <<"cap false (k): "<<schedule[k]<<" "<< picked << "\n";
+							capconstrain = 0;
+							break;
+						}
+
+						tmp += tree.tdsp(Pos(schedule[k-1]), Pos(schedule[k]),tmp,false);
+						loginsertion << "schedule[k]  tree.tdsp(" << schedule[k-1] << "," << schedule[k] <<"): " << tmp << "\n";
+						numOfTDSP++;
+						if ((w.S[k] & 1) && (tmp > R[w.S[k]>>1].ddl)){			
+							loginsertion <<"ddl false (k):  "<< schedule[k] << " " << tmp << " " << R[w.S[k]>>1].ddl <<  "\n";
+							break;
+						}
+						if (k == w.S.size()-1 && capconstrain == 1 && tmp < delta)
+						{
+							loginsertion <<"update delta"<< tmp << " " << i <<"  "<<j<< "\n";
+							delta = tmp, optimanl_i = i, optimanl_j = j;
+						}
+						
+					}
 				}
 				
-				else//case 4, 5: i and j in general ;i in general, j==w.s.size();
+
+				else //case 4, 5: i and j in general ;i in general, j==w.s.size();
 				{
 					tmp += tree.tdsp(r.s, Pos(schedule[i]), tmp,false);
-                    numOfTDSP++;
-					if(w.S[i] & 1){
-                        if(tmp > DDLEndPos(w.S[i])){false_flag = 1;}
-                    }
-					for(int k = i+1; k < w.S.size(); ++k){
+					loginsertion << "schedule[i]  tree.tdsp(" << r.s << "," << schedule[i] <<"): " << tmp << "\n";
+					picked = PickedNum(w,picked,i);
+					if (PickedFalse(w,picked) == 0)
+					{
+						loginsertion <<"cap false (i): "<<schedule[i]<<" "<< picked << "\n";
+						capconstrain = 0;
+						break;
+					}
 
+
+                    numOfTDSP++;
+					if((w.S[i] & 1) && (tmp > R[w.S[i]>>1].ddl)){
+						loginsertion <<"ddl false (i):  "<< schedule[i] << " " << tmp << " " << R[w.S[i]>>1].ddl <<  "\n";
+						continue;
+                    }
+
+					for(int k = i+1; k < w.S.size(); ++k){
+						
 						if(k == j){
 							tmp += tree.tdsp(Pos(schedule[k-1]), r.e, tmp,false);
+							loginsertion << "r.e  tree.tdsp(" << schedule[k-1] << "," << r.e <<"): " << tmp << "\n";
+							picked -= r.com;
 							numOfTDSP++;
 							if(tmp > r.ddl){
-								false_flag = 1;
+								loginsertion <<"ddl false (r.e): "<<tmp<< " " << r.ddl << "\n";
 								break;
 							} 
-							tmp += tree.tdsp(r.e, Pos(schedule[k]),tmp,false);							
+							tmp += tree.tdsp(r.e, Pos(schedule[k]),tmp,false);
+							loginsertion << "schedule[j]  tree.tdsp(" << r.e << "," << schedule[k] <<"): " << tmp << "\n";							
 							numOfTDSP++;
 						}
 						else
 						{
 							tmp += tree.tdsp(Pos(schedule[k-1]), Pos(schedule[k]),tmp,false);
+							loginsertion << "schedule[k]  tree.tdsp(" << schedule[k-1] << "," << schedule[k] <<"): " << tmp << "\n";
 							numOfTDSP++;
 						}
-						if (w.S[k] & 1){		
-							if(tmp > DDLEndPos(w.S[k])){
-								false_flag = 1;
-								break;
-							}
-						}	
+
+						picked = PickedNum(w,picked,k);
+						if (PickedFalse(w,picked) == 0)
+						{
+							loginsertion <<"cap false (k): "<< schedule[k]<<" "<< picked << "\n";
+							capconstrain = 0;
+							break;
+						}
+
+						if ((w.S[k] & 1) && (tmp > R[w.S[k]>>1].ddl)){
+							loginsertion <<"ddl false (k):  "<< schedule[k] << " " << tmp << " " << R[w.S[k]>>1].ddl <<  "\n";
+							ddlconstrain = 0;		
+							break;
+						}
+						if (k == w.S.size()-1 && j <= k && capconstrain == 1 && tmp < delta)
+						{
+							loginsertion <<"update delta"<< tmp << " " << i <<"  "<<j<< "\n";
+							delta = tmp, optimanl_i = i, optimanl_j = j;
+						}
+							
 					}
-					if(j == w.S.size()){//case 5: i in general, j==w.s.size();
+
+					////////////////////////////////////////////////////////////////// if insert r.s violate ddl then continue
+					if(j == w.S.size() && ddlconstrain == 1){  //case 5: i in general, j==w.s.size();
 						tmp += tree.tdsp(Pos(schedule[schedule.size()-1]), r.e, tmp, false);
+						loginsertion << "r.e  tree.tdsp(" << schedule[schedule.size()-1] << "," << r.e <<"): " << tmp << "\n";
 						numOfTDSP++;
-						// dump_result << "try_insertion case 5, j ==w.s.size() :" << "\n"; 
-						if(tmp>r.ddl){false_flag = 1;}
-					}
-					if (tmp < delta and false_flag == 0){
-						delta = tmp, optimanl_i = i, optimanl_j = j; 
-					}						
+						picked -= r.com;
+						if (PickedFalse(w,picked) == 0)
+						{
+							loginsertion <<"cap false (r.e): "<<schedule[j-1]<<" "<< picked << "\n";
+							capconstrain = 0;
+							break;							
+						}
+						
+						if(tmp>r.ddl){
+							loginsertion <<"ddl false (r.e):"<<tmp<< " " << r.ddl << "\n";
+							continue;
+						}
+						if (tmp < delta && capconstrain == 1){
+							loginsertion <<"update delta"<< tmp << " " << i <<"  "<<j<< "\n";
+							delta = tmp, optimanl_i = i, optimanl_j = j; 
+						}	
+					}					
 				}				
-			}			
+			}						
 		}		
 	}
 }
@@ -662,15 +824,26 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 	if (w.S.empty())
 	{
-
 		w.S.push_back(rid << 1);
 		w.S.push_back(rid << 1 | 1);
-		//updateDriverArr(w);
 
 		cout << "insert at empty car: "<< wid << endl;
 		cout << "before insertion: "<<endl;
 		cout <<  w.S << endl;
 		cout <<  w.reach << endl;
+
+		loginsertion << "insert at empty car: "<< wid << "\n";
+		loginsertion << "before insertion: " << "\n";
+		for (int k = 0; k < w.S.size(); k++)
+		{
+			loginsertion << w.S[k] << " ";
+		}
+		loginsertion << "\n" ;
+		for (int k = 0; k < w.reach.size(); k++)
+		{
+			loginsertion << w.reach[k] << " ";
+		}
+		loginsertion << "\n" ;
 
 		updateDriverArr(w);
 
@@ -678,10 +851,23 @@ void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 		cout <<  w.S << endl;
 		cout <<  w.reach << endl;
 		cout << "------------------------------------" << endl;
+
+		loginsertion << "after insertion: " << optimal_i << " " << optimal_j << "\n";
+		for (int k = 0; k < w.S.size(); k++)
+		{
+			loginsertion << w.S[k] << " ";
+		}
+		loginsertion << "\n" ;
+		for (int k = 0; k < w.reach.size(); k++)
+		{
+			loginsertion << w.reach[k] << " ";
+		}
+		loginsertion << "\n" ;
+		loginsertion << "------------------------------------" << "\n";
+
 		return;
 	}
 
-	vector<int>& picked = w.picked;
 	vector<double>& reach = w.reach;
 
 	vector<int> ret;
@@ -735,20 +921,48 @@ void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 		ret.push_back(rid << 1|1);
 	}
 
-    cout << "insert at car: " << wid << endl;
+    cout << "Assign request:" << rid <<" "<< R[rid].ddl << " to worker : " << wid << endl;
     cout << "before insertion: "<<endl;
     cout <<  w.S << endl;
     cout <<  w.reach << endl;
 
+	loginsertion << "Assign request:" << rid <<" "<< R[rid].ddl << " to worker : " << wid << "\n";
+	loginsertion << "before insertion: " << "\n";
+	for (int k = 0; k < w.S.size(); k++)
+	{
+		loginsertion << w.S[k] << " ";
+	}
+	loginsertion << "\n" ;
+	for (int k = 0; k < w.reach.size(); k++)
+	{
+		loginsertion << w.reach[k] << " ";
+	}
+	loginsertion << "\n" ;
 
 	w.S.clear();
 	w.S = ret;
 	updateDriverArr(w);
 
-    cout << "after insertion: " <<"  positions: "<< optimal_i << " " << optimal_j <<endl;
+    cout << "after insertion: " << optimal_i << " " << optimal_j <<endl;
     cout <<  w.S << endl;
     cout <<  w.reach << endl;
     cout << "------------------------------------" << endl;
+
+	loginsertion << "after insertion: " << optimal_i << " " << optimal_j << "\n";
+	for (int k = 0; k < w.S.size(); k++)
+	{
+		loginsertion << w.S[k] << " ";
+	}
+	loginsertion << "\n" ;
+	for (int k = 0; k < w.reach.size(); k++)
+	{
+		loginsertion << w.reach[k] << " ";
+	}
+	loginsertion << "\n" ;
+
+	loginsertion << w.num << " ";
+
+	loginsertion << "------------------------------------" << "\n";
 }
 
 void updateDriverArr(Worker& w){
@@ -768,21 +982,6 @@ void updateDriverArr(Worker& w){
 		reach.push_back(tim);
 	}
 
-	vector<int>& picked = w.picked;
-	picked.clear();
-	int cc = w.num;
-	for(int k = 0; k < w.S.size(); ++k){
-		if (w.S[k] & 1) {
-			cc -= R[w.S[k] >> 1].com;
-		} else {
-			cc += R[w.S[k] >> 1].com;
-		}
-		picked.push_back(cc);
-		if (cc > w.maxnum)
-		{
-			w.maxnum = cc;
-		}			
-	}
 
 	// update memory
 	int memo = 0;
@@ -790,7 +989,7 @@ void updateDriverArr(Worker& w){
 	memo += sizeof(w.tim);
 	memo += w.S.size() * sizeof(w.S[0]);
 	memo += w.reach.size() * sizeof(w.reach[0]);
-	memo += w.picked.size() * sizeof(w.picked[0]);
+	//memo += w.picked.size() * sizeof(w.picked[0]);
 	if(memo > w.memory)
 	{
 		w.memory = memo;

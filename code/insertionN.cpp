@@ -120,20 +120,13 @@ void readInput() {
 		exit(0);
 	}
 	ifs >> n;
+	cout  << n << endl;
 	R = new Request[n];
+	cout << "R = new Request[n];" << endl;
 	for (int i = 0; i < n; ++ i) {
 		ifs >> R[i].tim >> R[i].s >> R[i].e >> R[i].len >>R[i].com;
-		//ifs >> R[i].tim >> R[i].s >> R[i].e >>R[i].com;
-		//R[i].ddl = R[i].tim + R[i].len * delta;
-		//R[i].ddl = TMAX - 1;
-		R[i].ddl = R[i].tim + R[i].len + deltasecond;
-		//cout << i <<" " <<R[i].tim <<" " << R[i].len<<" " << R[i].ddl <<" "<< << endl;
+		R[i].ddl = R[i].tim + R[i].len * delta;
 		//R[i].ddl = R[i].tim + R[i].len + deltasecond;
-		// R[i].ddl = TMAX - 1;
-		// if (R[i].ddl > TMAX)
-		// {
-		// 	R[i].ddl  = TMAX - 1;
-		// }		
 	}
 	ifs.close();
 	cout << "end request" << endl;	
@@ -418,7 +411,7 @@ double function_arrival(Worker &w, int i, int j,double arr){
 		return INF;
 	}
 	else{	
-		if(i==j){
+		if(i==j || Pos(w.S[i]) == Pos(w.S[j])){
 			if(arr <= w.ddl[i]){
 				return arr;
 			}
@@ -466,163 +459,208 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 	vector<int>& schedule = w.S;
 	vector<double>& reach = w.reach;
 	vector<double>& ddl = w.ddl;
-	int delta_i = -1;
-	
-	// cout << "@@@@@@@@@@@@@@@" <<endl;
-	// for (int i = 0; i < schedule.size(); i++)
-	// {
-	// 	cout << schedule[i] << " ";
-	// }
-	// cout << endl;
-	// for (int i = 0; i < schedule.size(); i++)
-	// {
-	// 	cout << reach[i] << " ";
-	// }
-	// cout << endl;
-	// for (int i = 0; i < schedule.size(); i++)
-	// {
-	// 	cout << ddl[i] << " ";
-	// }
-	// cout << endl;
-	// for (int i = 0; i < schedule.size(); i++)
-	// {
-	// 	cout << picked[i] << " ";
-	// }
-	// cout << endl;	 	 
-	// cout << "@@@@@@@@@@@@@@@" <<endl; 
 
-	double arrsj = INF; 			// after inserting r.s at delta_i, the new arrival time at j 
+	vector<double> scache, ecache, arricache;
+	scache.resize(schedule.size()+1, 0), ecache.resize(schedule.size()+1, 0);
+	arricache.resize(schedule.size(), 0);
+
+	// ONE: for special case i == j
 	for (int j = 0; j <= schedule.size(); j++)
 	{
-		double tmp=INF, tmps=INF, det_i = INF;
-		//cout << "try :" << delta_i << " " << j << endl;
+		loginsertion << "*****************************************" << "\n";
+		loginsertion << "try_insertion i=j: " << j << "\n";		
+		double tmp;
+		if (j == 0)
+		{
+			if(w.num + r.com > w.cap)
+			{
+				loginsertion <<"cap false (r.s): "<< schedule[j] << "\n";
+				continue;
+			}
+			tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim, false);
+			scache[0] = tmp;
+			loginsertion << "r.s  tree.tdsp(" << w.pid << "," << r.s <<"): " << w.tim << "\n";
+			numOfTDSP++;
+		}
+		else
+		{
+			cout << "if(picked[j-1] + r.com > w.cap)" << endl;
+			if(picked[j-1] + r.com > w.cap)
+			{
+				loginsertion <<"cap false (r.s): "<< schedule[j-1] << "\n";
+				continue;
+			}
+			cout << "tmp = reach[j-1] + tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false);" << endl;
+			tmp = reach[j-1] + tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false);
+			scache[j] = tmp;
+			loginsertion << "r.s  tree.tdsp(" << schedule[j-1] << "," << r.s <<"): " << tmp << "\n";
+			numOfTDSP++;
+		}
+		
+		cout << " tmp += tree.tdsp(r.s,r.e, tmp, false); " << endl;
+		tmp += tree.tdsp(r.s,r.e, tmp, false);
+		ecache[j] = tmp;
+		loginsertion << "r.e  tree.tdsp(" << r.s << "," << r.e <<"): " << tmp << "\n";
+		numOfTDSP++;
+
+		
 		if (j == schedule.size())
 		{
-
-			//case 1: i in general, j == schedule.size()
-			if(delta_i != -1)
-			{
-				cout << "case: i < j, j == schedule.size()" <<endl;
-				cout << "tree.tdsp(Pos(schedule[j-1]), r.e, arrsj, false); "<<schedule[j-1] <<" "<<Pos(schedule[j-1])<<" "<< r.e <<" " << arrsj <<endl;
-				tmp = arrsj + tree.tdsp(Pos(schedule[j-1]), r.e, arrsj, false);
-				numOfTDSP++;
-				if (tmp <= r.ddl & tmp < delta)
-				{
-					delta = tmp;
-					optimanl_i = delta_i;
-					optimanl_j = j;
-				}
-			}
-
-			//case 2: i == j == schedule.size()
-			cout << "case: i == j == schedule.size()" <<endl;
-			cout << "tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false); "<<schedule[j-1] <<" "<<Pos(schedule[j-1])<<" "<< r.s <<" " << reach[j-1] <<endl;
-			tmp = reach[j-1] + tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false);
-			cout << "tree.tdsp(r.s, r.e, tmp, false); " <<r.s<<" "<< r.e <<" " << tmp <<endl;
-			tmp += tree.tdsp(r.s, r.e, tmp, false);
-			numOfTDSP++;
-			numOfTDSP++;
-			if (tmp <= r.ddl & tmp < delta)
+			cout << " if (tmp <= r.ddl && tmp < delta) " << endl;
+			if (tmp <= r.ddl && tmp < delta)
 			{
 				delta = tmp;
 				optimanl_i = j;
 				optimanl_j = j;
-			}
-			
-			continue;			
-		}
-
-		cout << " ----------------------------------- " << endl;
-		cout << j << " " << w.num << " " << r.com << " " << w.cap << endl;
-		if (j == 0 & w.num + r.com <= w.cap)
-		{
-			cout << "case j == 0, arr[r.s]" <<endl;
-			tmps = w.tim + tree.tdsp(w.pid, r.s, w.tim, false);
-			numOfTDSP++; 
+				cout << " loginsertion << " << endl;
+				loginsertion <<"update delta"<< tmp << " " << optimanl_i <<"  "<<optimanl_j<< "\n";
+			}	
 		}
 		else
-		{ 
-			if (picked[j-1]+r.com <= w.cap)
-			{	
-				cout << "case j in general, arr[r.s]" <<endl;
-				tmps = reach[j-1] + tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false);
-				numOfTDSP++;
-			}
-		}
-		// if insert r.s at j donot validate the capacity constrain
-		if (tmps < INF)
 		{
-			cout << "case: r.s -> r.e" <<endl;
-			cout << "tree.tdsp(r.s, r.e, tmps, false); "<<r.s <<" "<<r.e<<" "<< tmps <<endl;
-			tmp = tmps + tree.tdsp(r.s, r.e, tmps, false);
-			numOfTDSP++;
-
-			cout << "case: r.s -> scedule[j]" <<endl;
-			cout << "tree.tdsp(r.s, Pos(schedule[j]), tmps, false); "<<r.s <<" "<<schedule[j]<<" "<< tmps <<endl;
-			det_i = tmps + tree.tdsp(r.s, Pos(schedule[j]), tmps, false);
-			numOfTDSP++;
-		}
-		
-		cout << "check new position for i, r.s: " <<endl;
-		cout << "function_arrival(w, j-1, j, arrsj): "<<arrsj <<endl;
-		if (det_i<=ddl[j] & tmps < r.ddl & ((delta_i == -1)|(delta_i!=-1 & det_i < function_arrival(w, j-1, j, arrsj))))
-		{
-			cout << "delta_i = j: " << delta_i << endl;
-			delta_i = j;
-			arrsj = det_i;
-			if (tmp < r.ddl)
+			if (tmp <= r.ddl)
 			{
-				cout << "update i, i == j:" << endl;
-				cout << "tree.tdsp(r.e, Pos(schedule[j]), tmp, false);" << r.e << " " << schedule[j] << " " << tmp << endl;
 				tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp, false);
+				arricache[j] = tmp;
+				loginsertion << "schedule[j]  tree.tdsp(" << r.e << "," << schedule[j] <<"): " << tmp << "\n";
 				numOfTDSP++;
-
-				tmp = function_arrival(w,j,schedule.size()-1, tmp);
-				if (tmp < delta)
+				if (tmp <= ddl[j])
 				{
-					delta = tmp;
-					optimanl_i = j;
-					optimanl_j = j;
-				}				
-			}
-		}
-
-		else 
-		{
-			cout << " i not change: " <<delta_i<< endl;
-			if (delta_i == -1)
-			{
-				arrsj = reach[j];
-			}
-			else
-			{
-				cout << "case: i<j" << endl;
-				cout << "tree.tdsp(Pos(schedule[j-1]), r.e, arrsj, false); " << schedule[j-1] << " " << r.e << " "<<arrsj << endl;
-				tmp = arrsj + tree.tdsp(Pos(schedule[j-1]), r.e, arrsj, false);
-				numOfTDSP++;
-				if (tmp <= r.ddl)
-				{
-					//cout << "case: i<j, " << endl;
-					cout << "tree.tdsp(r.e, Pos(schedule[j]), tmp, false); " << r.e << " " << schedule[j] << " "<<tmp << endl;
-					tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp, false);
-					numOfTDSP++;
-					cout << "function_arrival(w,j,schedule.size()-1, tmp); " <<tmp << endl;
 					tmp = function_arrival(w,j,schedule.size()-1, tmp);
+					loginsertion << "obj  function_arrival(" << schedule[j] << "," << schedule[schedule.size()-1] <<"): " << tmp  << "\n";
 					if (tmp < delta)
 					{
 						delta = tmp;
-						optimanl_i = delta_i;
+						optimanl_i = j;
 						optimanl_j = j;
+						loginsertion <<"update delta"<< tmp << " " << optimanl_i <<"  "<<optimanl_j<< "\n";
 					}
-					
-				}
-				arrsj = function_arrival(w, j-1, j, arrsj);
+				}				
+			}		
+		}			
+	}
+	
+
+	cout << " vector<double> arrsj(w.S.size(), INF);  " << endl;
+	vector<double> arrsj(w.S.size(), INF);
+	vector<int> plc(w.S.size(), INF);
+
+	// TW0: for j = 0;
+	loginsertion << "*****************************************" << "\n";
+	loginsertion << "try_insertion r.e: " << 0 << "\n";
+	cout << " TW0: for j = 0; " << endl;
+	if (w.num + r.com <= w.cap)
+	{
+		double tmp;
+		//tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim, false);
+		//numOfTDSP++;
+		tmp = scache[0];
+		loginsertion << "r.s  tree.tdsp(" << w.pid << "," << r.s <<"): " << tmp << "\n";
+		if (tmp < r.ddl)
+		{
+			tmp += tree.tdsp(r.s,Pos(schedule[0]), tmp, false);
+			numOfTDSP++;
+			loginsertion << "schedule[i]  tree.tdsp(" << r.s << "," << schedule[0] <<"): " << tmp << "\n";
+			if (tmp <= ddl[0])
+			{
+				plc[0] = 0;
+				arrsj[0] = tmp;
+
+				loginsertion << "update r.s location " << plc[0] << "\n";
+
 			}
 			
 		}
 		
 	}
+
+	// TW0: for j -> 1 to schedule.size()
+	for (int j = 1; j <= schedule.size(); j++)
+	{
+		cout << " TW0: for j -> 1 to schedule.size():" << schedule[j] << endl;
+		double tmp=INF, det_i = INF;
+		loginsertion << "*****************************************" << "\n";
+		loginsertion << "try_insertion r.e: " << j << "\n";
+
+		if(picked[j-1] + r.com <= w.cap)
+		{
+			//step 1: check insertion r.e before j (ddl constrain & objective)			
+			tmp = arrsj[j-1] + tree.tdsp(Pos(schedule[j-1]), r.e, arrsj[j-1],false);
+			loginsertion << "r.e  tree.tdsp(" << schedule[j-1] << "," << r.e <<"): " << arrsj[j-1] << " " <<tmp << "\n";
+			numOfTDSP++;
+			if(tmp <= r.ddl)
+			{
+				if (j == schedule.size())
+				{	
+					if (tmp < delta)
+					{
+						delta = tmp;
+						optimanl_i = plc[j-1];
+						optimanl_j = j;
+						loginsertion <<"update delta"<< tmp << " " << optimanl_i <<"  "<<optimanl_j<< "\n";						
+					}
+				
+					continue;
+				}
+				
+				cout << " before: tree.tdsp(r.e, Pos(schedule[j]), tmp, false)" << schedule[j] << endl;
+				tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp, false); ////////****************************
+				cout << " after: tree.tdsp(r.e, Pos(schedule[j]), tmp, false)" << schedule[j] << endl;
+				loginsertion << "schedule[j]  tree.tdsp(" << r.e << "," << schedule[j] <<"): " << tmp << "\n";
+				numOfTDSP++;
+				if (tmp <= ddl[j])
+				{
+					tmp = function_arrival(w,j,schedule.size()-1,tmp);
+					loginsertion << "obj  function_arrival(" << schedule[j] << "," << schedule[schedule.size()-1] <<"): " << tmp << "\n";
+					if (tmp < delta)
+					{
+						delta = tmp;
+						optimanl_i = plc[j-1];
+						optimanl_j = j;
+						loginsertion <<"update delta"<< tmp << " " << optimanl_i <<"  "<<optimanl_j<< "\n";
+					}
+					
+				}
+				
+			}
+
+
+			if (j == schedule.size())
+			{
+				continue;
+			}
+			
+
+			//step 2: update plc[j], insertion r.s before j is better
+			plc[j] = plc[j-1];
+			arrsj[j]= function_arrival(w,j-1,j,arrsj[j-1]);
+			loginsertion << "insert r.s before j schedule[j] function_arrival(" << schedule[j-1] << "," << schedule[j] <<"): " << arrsj[j] << "\n";
+			// tmp = reach[j-1] + tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false);
+			// numOfTDSP++;
+			tmp = scache[j];
+
+			loginsertion << "potential new r.s  tree.tdsp(" << schedule[j-1] << "," << r.s <<"): " << tmp << "\n";
+			if (tmp < r.ddl)
+			{
+				tmp += tree.tdsp(r.s, Pos(schedule[j]), tmp, false);
+				loginsertion << "insert r.s at j schedule[j]  tree.tdsp(" << r.s << "," << schedule[j] <<"): " << tmp << "\n";
+				numOfTDSP++;
+				if (tmp < ddl[j])
+				{
+					if (tmp < arrsj[j])
+					{
+						plc[j] = j;
+						arrsj[j] = tmp;		
+						loginsertion <<"update i for r.s: "<< j << " " << tmp << "\n";				
+					}
+				}
+				
+			}
+		}
+				
+	}
 }
+
 
 
 int try_insertion_euclidDist(Worker &w, int rid)
@@ -757,6 +795,7 @@ void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 		cout << "after insertion: " << optimal_i << " " << optimal_j <<endl;
 		cout <<  w.S << endl;
 		cout <<  w.reach << endl;
+		cout << w.picked <<endl;
 		cout << "------------------------------------" << endl;
 
 
@@ -1134,6 +1173,273 @@ void testplf()
 	cout << sizeof(b) <<endl;
 	
 }
+
+
+/*  ----------------------------------------  try_insertion -----------------------------
+// void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &optimanl_j) {
+// 	Request& r = R[rid];
+// 	double opt = INF;
+
+// 	if (w.S.empty()) {
+// 		double tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim,false);
+// 		numOfTDSP++; 
+//         tmp += tree.tdsp(r.s, r.e, tmp,false);
+// 		numOfTDSP++;
+// 		if (tmp < r.ddl + EPS && r.com <= w.cap) {
+// 			delta = tmp, optimanl_i = 0, optimanl_j = 0;
+// 		}
+// 		return;
+// 	}
+	
+
+// 	vector<int>& picked = w.picked;
+// 	vector<int>& schedule = w.S;
+// 	vector<double>& reach = w.reach;
+// 	vector<double>& ddl = w.ddl;
+// 	int delta_i = -1;
+	
+// 	int capacityflag = 0;
+
+// 	double arrsj = INF; 			// after inserting r.s at delta_i, the new arrival time at j 
+// 	for (int j = 0; j <= schedule.size(); j++)
+// 	{
+// 		double tmp=INF, tmps=INF, det_i = INF;
+
+// 		loginsertion << "*****************************************" << "\n";
+// 		loginsertion << "try_insertion: " << j << "\n";
+
+// 		if (j == schedule.size())
+// 		{
+// 			if(r.com > w.cap){
+// 				loginsertion <<"cap false j: "<<r.com << "\n";
+// 				continue;
+// 			} 
+
+// 			//case 1: i in general, j == schedule.size()
+// 			if(delta_i != -1)
+// 			{
+// 				//cout << "case: i < j, j == schedule.size()" <<endl;
+// 				//cout << "tree.tdsp(Pos(schedule[j-1]), r.e, arrsj, false); "<<schedule[j-1] <<" "<<Pos(schedule[j-1])<<" "<< r.e <<" " << arrsj <<endl;
+// 				tmp = arrsj + tree.tdsp(Pos(schedule[j-1]), r.e, arrsj, false);
+// 				numOfTDSP++;
+// 				if (tmp <= r.ddl & tmp < delta)
+// 				{
+// 					delta = tmp;
+// 					optimanl_i = delta_i;
+// 					optimanl_j = j;
+// 					loginsertion <<"update delta"<< tmp << " " << optimanl_i <<"  "<<optimanl_j<< "\n";
+// 				}
+// 				else if(tmp > r.ddl)
+// 				{
+// 					loginsertion <<"ddl&cap false S.size()"<< tmp << " " << r.ddl << "\n";
+// 					continue;
+// 				}
+// 			}
+
+// 			//case 2: i == j == schedule.size()
+// 			//cout << "case: i == j == schedule.size()" <<endl;
+// 			//cout << "tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false); "<<schedule[j-1] <<" "<<Pos(schedule[j-1])<<" "<< r.s <<" " << reach[j-1] <<endl;
+// 			tmp = reach[j-1] + tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false);
+// 			//cout << "tree.tdsp(r.s, r.e, tmp, false); " <<r.s<<" "<< r.e <<" " << tmp <<endl;
+// 			tmp += tree.tdsp(r.s, r.e, tmp, false);
+// 			numOfTDSP++;
+// 			numOfTDSP++;
+// 			if (tmp <= r.ddl & tmp < delta)
+// 			{
+// 				delta = tmp;
+// 				optimanl_i = j;
+// 				optimanl_j = j;
+// 				loginsertion <<"update delta, new i for j == s.size()"<< tmp << " " << optimanl_i <<"  "<<optimanl_j<< "\n";
+// 			}
+			
+// 			continue;			
+// 		}
+
+// 		// cout << " ----------------------------------- " << endl;
+// 		// cout << j << " " << w.num << " " << r.com << " " << w.cap << endl;
+// 		if (j == 0)
+// 		{	
+// 			if(w.num + r.com > w.cap){
+// 				loginsertion <<"cap false j: "<<j<<" "<< picked[0] << " " << r.com << "\n";
+// 				continue;
+// 			}
+// 			//cout << "case j == 0, arr[r.s]" <<endl;
+// 			tmps = w.tim + tree.tdsp(w.pid, r.s, w.tim, false);
+// 			numOfTDSP++; 
+// 		}
+// 		else
+// 		{
+// 			if(picked[j-1] + r.com > w.cap){
+// 				loginsertion <<"cap false j: "<<j<<" "<< picked[j] << " " << r.com << "\n";
+// 				continue;
+// 			} 
+// 			//cout << "case j in general, arr[r.s]" <<endl;
+// 			tmps = reach[j-1] + tree.tdsp(Pos(schedule[j-1]), r.s, reach[j-1], false);
+// 			numOfTDSP++;
+// 		}
+		
+
+// 		// if insert r.s at j donot validate the capacity constrain
+// 		// if (tmps < INF)
+// 		// {
+// 		// cout << "case: r.s -> r.e" <<endl;
+// 		// cout << "tree.tdsp(r.s, r.e, tmps, false); "<<r.s <<" "<<r.e<<" "<< tmps <<endl;
+// 		tmp = tmps + tree.tdsp(r.s, r.e, tmps, false);
+// 		numOfTDSP++;
+
+// 		// cout << "case: r.s -> scedule[j]" <<endl;
+// 		// cout << "tree.tdsp(r.s, Pos(schedule[j]), tmps, false); "<<r.s <<" "<<schedule[j]<<" "<< tmps <<endl;
+// 		det_i = tmps + tree.tdsp(r.s, Pos(schedule[j]), tmps, false);
+// 		numOfTDSP++;
+// 		// }
+		
+// 		// cout << "check new position for i, r.s: " <<endl;
+// 		// cout << "function_arrival(w, j-1, j, arrsj): "<<arrsj <<endl;
+// 		cout << "j: " << j << endl;
+// 		cout << "det_i<=ddl[j] && tmp < r.ddl && ((delta_i == -1)||(delta_i!=-1 && det_i < function_arrival(w, j-1, j, arrsj)))" <<endl;
+// 		cout << "delta_i: " << delta_i << " " << "det_i: " << det_i <<" " <<"arrsj: "<< arrsj <<" " << "function_arrival: " <<function_arrival(w, j-1, j, arrsj) <<endl;
+// 		loginsertion << "det_i<=ddl[j] && tmp < r.ddl && ((delta_i == -1)||(delta_i!=-1 && det_i < function_arrival(w, j-1, j, arrsj)))" <<"\n";
+// 		loginsertion << "delta_i: " << delta_i << " " << "det_i: " << det_i <<" " <<"arrsj: "<< arrsj <<" " << "function_arrival: " <<function_arrival(w, j-1, j, arrsj) <<"\n";
+// 		if (det_i<=ddl[j])
+// 		{
+// 			loginsertion << "true1; ";
+// 			cout << "true1; ";
+// 		}
+// 		else
+// 		{
+// 			loginsertion << "faluse1; ";
+// 			cout << "faluse1; ";
+// 		}
+// 		if (tmp < r.ddl)
+// 		{
+// 			loginsertion << "true2; ";
+// 			cout << "true2; ";
+// 		}
+// 		else
+// 		{
+// 			loginsertion << "faluse2; ";
+// 			cout << "faluse2; ";
+// 		}	
+// 		if (((delta_i == -1)||(delta_i!=-1 && det_i + 0.001 < function_arrival(w, j-1, j, arrsj))))
+// 		{
+// 			loginsertion << "true3; ";
+// 			cout << "true3; ";
+// 		}
+// 		else
+// 		{
+// 			loginsertion << "faluse3; ";
+// 			cout << "faluse3; ";
+// 		}
+// 		cout << endl;
+// 		loginsertion << "\n ";
+		
+		 
+// 		if (det_i<=ddl[j] && tmp < r.ddl && ((delta_i == -1)||(delta_i!=-1 && det_i + 0.001 < function_arrival(w, j-1, j, arrsj))))
+// 		{
+// 			// cout << "delta_i = j: " << delta_i << endl;
+// 			capacityflag = 1;
+// 			if(j-1 >= 0)
+// 			{
+// 				cout << w.FunctionTimesegments.size() << endl;
+// 				loginsertion << w.FunctionTimesegments.size() << " " << j-1 << "\n";
+// 				auto s1 = w.FunctionTimesegments[j-1].f->begin();
+// 				while (s1 != w.FunctionTimesegments[j-1].f->end())
+// 				{
+// 					loginsertion << s1->t << " " << s1->w <<"; ";
+// 					s1 ++;
+// 				}
+// 				loginsertion << "\n" ;
+// 			}
+
+
+// 			loginsertion <<"update new i for j =  "<<j<<" "<<det_i<<" "<<ddl[j]<< "\n";
+// 			loginsertion << Pos(w.S[j-1]) << " " << Pos(w.S[j]) << " " << arrsj << "\n";
+// 			delta_i = j;
+// 			arrsj = det_i;
+// 			if (tmp < r.ddl)
+// 			{
+// 				//cout << "update i, i == j:" << endl;
+// 				//cout << "tree.tdsp(r.e, Pos(schedule[j]), tmp, false);" << r.e << " " << schedule[j] << " " << tmp << endl;
+// 				tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp, false);
+// 				numOfTDSP++;
+
+// 				tmp = function_arrival(w,j,schedule.size()-1, tmp);
+// 				if (tmp < delta)
+// 				{
+// 					delta = tmp;
+// 					optimanl_i = j;
+// 					optimanl_j = j;
+// 					loginsertion <<"update delta"<< tmp << " " << optimanl_i <<"  "<<optimanl_j<< "\n";
+// 				}				
+// 			}
+// 		}
+
+// 		else 
+// 		{
+// 			//cout << " i not change: " <<delta_i<< endl;
+// 			if (capacityflag == 0)
+// 			{
+// 				continue;
+// 			}
+			
+
+// 			loginsertion <<"donot update i  "<<delta_i<< "\n";
+// 			if (delta_i == -1)
+// 			{
+// 				arrsj = reach[j];
+// 			}
+// 			else
+// 			{
+// 				//cout << "case: i<j" << endl;
+// 				//cout << "tree.tdsp(Pos(schedule[j-1]), r.e, arrsj, false); " << schedule[j-1] << " " << r.e << " "<<arrsj << endl;
+// 				if (picked[j-1] + r.com > w.cap)
+// 				{
+// 					capacityflag = 0;
+// 					continue;
+// 				}
+				
+				
+// 				tmp = arrsj + tree.tdsp(Pos(schedule[j-1]), r.e, arrsj, false);
+// 				arrsj = function_arrival(w, j-1, j, arrsj);
+// 				numOfTDSP++;
+// 				if (tmp <= r.ddl)
+// 				{
+// 					//cout << "case: i<j, " << endl;
+// 					//cout << "tree.tdsp(r.e, Pos(schedule[j]), tmp, false); " << r.e << " " << schedule[j] << " "<<tmp << endl;
+// 					tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp, false);
+// 					numOfTDSP++;
+// 					if (tmp > ddl[j])
+// 					{
+// 						loginsertion <<"ddl false j: "<<j<<" "<<tmp << " "<<ddl[j]<< "\n";
+// 						continue;
+// 					}
+					
+// 					//cout << "function_arrival(w,j,schedule.size()-1, tmp); " <<tmp << endl;
+// 					tmp = function_arrival(w,j,schedule.size()-1, tmp);
+// 					if (tmp < delta)
+// 					{
+// 						delta = tmp;
+// 						optimanl_i = delta_i;
+// 						optimanl_j = j;
+// 						loginsertion <<"update delta"<< tmp << " " << optimanl_i <<"  "<<optimanl_j<< "\n";
+// 					}
+					
+// 				}
+// 				//arrsj = function_arrival(w, j-1, j, arrsj);
+// 			}
+			
+// 		}
+		
+// 	}
+// }
+*/
+
+
+
+
+
+
+
 
 
 

@@ -23,14 +23,13 @@ struct Request {
 
 struct Worker {
 	int memory = 0;
-	int pid, num, cap, gid, vid;
+	int pid, num,cap, gid, vid;
 	double tim;
 	int rwn;
 	
 	int maxnum = 0;
 	vector<int> S;
 	vector<double> reach;
-	vector<int> picked;
 
 	vector<tuple<int, double>> trajectory;
 
@@ -41,7 +40,6 @@ struct Worker {
 			trajectory.push_back(tuple<int,double>(S[0], reach[0]));
 			S.erase(S.begin());
 			reach.erase(reach.begin());
-			picked.erase(picked.begin());
 		}
 	}
 };
@@ -91,6 +89,10 @@ void updateDriverArr(Worker& w);
 
 void freeMemory();
 void recordTrajectory();
+
+int PickedFalse(Worker &w, int num);
+int PickedNum(Worker &w, int picked,int i);
+
 
 void test();
 // ---------------------------------------------------------------

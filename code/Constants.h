@@ -18,13 +18,14 @@
 static double EPSILON = 1e-5; //1/86400 =1.157e-5
 
 static int TMAX = 86400;
+//static int TMAX = 8640000;
 
 // hyper parameters
 static unsigned long LEAF_SIZE = 64;
 static unsigned long FANOUT = 4;
 
-static int delta = 2;
-static double deltasecond = 1500;
+static int delta = 1.2;
+static double deltasecond = 50000;
 static double MAX_speed = 26;
 static double grid_value = 1000;
 static double len = 600;
@@ -55,5 +56,6 @@ const std::string trajectory_n_path = "./data/trajectoryn.txt";
 
 const std::string insertion_log_n = "./data/logn.txt";
 const std::string insertion_log_n2 = "./data/logn2.txt";
+const std::string insertion_log_n3 = "./data/logn3.txt";
 
 #endif //TDGT_CONSTANTS_H

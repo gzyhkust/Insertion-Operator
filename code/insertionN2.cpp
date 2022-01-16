@@ -119,17 +119,13 @@ void readInput() {
 		exit(0);
 	}
 	ifs >> n;
+	cout  << n << endl;
 	R = new Request[n];
+	cout << "R = new Request[n];" << endl;
 	for (int i = 0; i < n; ++ i) {
 		ifs >> R[i].tim >> R[i].s >> R[i].e >> R[i].len >>R[i].com;
-		//R[i].ddl = TMAX - 1;
-		//R[i].ddl = R[i].tim + R[i].len * delta;
-		R[i].ddl = R[i].tim + R[i].len + deltasecond;
-		// if (R[i].ddl > TMAX)
-		// {
-		// 	R[i].ddl  = TMAX - 1;
-		// }
-
+		R[i].ddl = R[i].tim + R[i].len * delta;
+		//R[i].ddl = R[i].tim + R[i].len + deltasecond;
 	}
 	ifs.close();
 	cout << "end request" << endl;	
@@ -310,7 +306,7 @@ void timeDependentInsertion(){
 		cout << R[pos].s << " "<< R[pos].e << " " << endl;
 
 		loginsertion << "Assign request: " << pos <<"  with car size: "<< car.size() << "\n";
-		loginsertion << R[pos].s << " "<< R[pos].e << " " << "\n";
+		loginsertion << R[pos].s << " "<< R[pos].e << " " << R[pos].ddl <<  "\n";
 
 		assignbegin = clock();
 		assignTaxi(car);
@@ -374,7 +370,6 @@ void assignTaxi(vector<int>& car) {
 				insertionbegin = clock();
 				try_insertion(W[car[i]], pos, fit, x, y);
 				insertionend = clock();
-				//cout << "try insertion time: " << double(insertionend - insertionbegin) / CLOCKS_PER_SEC << endl;
 				insertiontime += double(insertionend - insertionbegin) / CLOCKS_PER_SEC;
 
 				if (fit < INF) {
@@ -513,7 +508,7 @@ int try_insertion_euclidDist(Worker &w, int rid)
 given the arrival time ai i, get the arrival time at j 
 */
 double function_arrival(Worker &w, int i, int j,double arr){
-	if(i==j){
+	if(i==j || Pos(w.S[i]) == Pos(w.S[j])){
 		return arr;
 	}
 	else
@@ -542,109 +537,152 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 	vector<double>& reach = w.reach;
 	vector<double>& ddl = w.ddl;
 	double tmp = 0;
+	int pickedi = w.num, pickedj = pickedi; 
 	for (int i = 0; i <= w.S.size(); ++ i){
+		if (i>0)
+		{
+			pickedi = picked[i-1];
+		}
+		if (pickedi + r.com > w.cap)
+		{
+			continue;
+		}
+		
+		
 		for (int j = i; j<= w.S.size(); ++j){
+
+			if(j>i)
+			{
+				pickedj = picked[j-1];
+				if (pickedj + r.com > w.cap)
+				{
+					break;
+				}
+				
+			}
+
+			loginsertion << "*****************************************" << "\n";
+			loginsertion << "try_insertion: " << i << " " << j << "\n";
+			// cout << "*****************************************" << endl;
+			// cout << "try_insertion: " << i << " " << j << endl;
 
 			if (i == 0 && j ==0){ //case 0:  i==j==0
 
 				tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim,false);
+				loginsertion << "r.s  tree.tdsp(" << w.pid << "," << r.s <<"): " << tmp << "\n";
 				numOfTDSP++;
 				tmp += tree.tdsp(r.s, r.e, tmp,false);
+				loginsertion << "r.e  tree.tdsp(" << r.s << "," << r.e <<"): " << tmp << "\n";
 				numOfTDSP++;
-				if (tmp<=r.ddl && w.num+r.com<=w.cap){ //at least w can pick r
+				if (tmp<=r.ddl){ //at least w can pick r
 					tmp += tree.tdsp(r.e, Pos(schedule[0]), tmp,false);
+					loginsertion << "schedule[i]  tree.tdsp(" << r.e << "," << schedule[0] <<"): " << tmp << "\n";
 					numOfTDSP++;
 					if(tmp <= ddl[0]){
 						opt = function_arrival(w,i,schedule.size() - 1, tmp);
+						loginsertion << "obj  function_arrival(" << schedule[i] << "," << schedule[schedule.size()-1] <<"): " << tmp << " "<< opt << "\n";
+						if(opt < delta){
+							loginsertion <<"update delta"<< opt << " " << i <<"  "<<j<< "\n";
+							delta = opt; optimanl_i = i; optimanl_j = j;				
+						} 
 					}
-					else
-					{
-						// //////////////////////////////////////////////
-						// cout << "i == 0 && j ==0 one" << endl;
-						// cout << tmp << " " << ddl[0] << endl;
-						// //////////////////////////////////////////////
-						continue;
-					}
-				}else
-				{
-					// //////////////////////////////////////////////
-					// cout << "i == 0 && j ==0 two" << endl;
-					// cout << tmp << " " << r.ddl << endl;
-					// //////////////////////////////////////////////
-					continue;
+					// else
+					// {
+					// 	loginsertion <<"ddl false (i):  "<< schedule[i] << " " << tmp << " " << ddl[i] <<  "\n";
+					// }
 				}
-				if(opt < delta){
-					delta = opt; optimanl_i = i; optimanl_j = j;				
-				} 
 			
 			}else if (i == w.S.size()){ //case 1:  i==j==w.S.size()
-				tmp = reach[reach.size() - 1] + tree.tdsp(Pos(schedule[schedule.size() - 1]), r.s, reach[reach.size() - 1], false);
+				tmp = reach[w.reach.size() - 1] + tree.tdsp(Pos(schedule[w.S.size() - 1]), r.s, reach[w.reach.size() - 1], false);
+				loginsertion << "r.s  tree.tdsp(" << schedule[w.S.size() - 1] << "," << r.s <<"): " << tmp << "\n";
 				numOfTDSP++;
 				tmp += tree.tdsp(r.s, r.e, tmp,false);
+				loginsertion << "r.e  tree.tdsp(" << r.s << "," << r.e <<"): " << tmp << "\n";
 				numOfTDSP++;
-				if (tmp > r.ddl || picked[i-1]+r.com > w.cap)
+				if(tmp<delta && tmp <= r.ddl && r.com <= w.cap)
 				{
-					// //////////////////////////////////////////////
-					// cout << "i==j==w.S.size()" << endl;
-					// cout << tmp << " " << r.ddl << endl;
-					// //////////////////////////////////////////////
-					continue;
-				}
-				opt = tmp;
-				if(opt<delta){
-					delta = opt, optimanl_i = i, optimanl_j = j;
-				}
+					loginsertion <<"update delta"<< tmp << " " << i <<"  "<<j<< "\n";
+					delta = tmp, optimanl_i = i, optimanl_j = j;  				
+				}				
+				
+				// tmp = reach[reach.size() - 1] + tree.tdsp(Pos(schedule[schedule.size() - 1]), r.s, reach[reach.size() - 1], false);
+				// numOfTDSP++;
+				// tmp += tree.tdsp(r.s, r.e, tmp,false);
+				// numOfTDSP++;
+				// //if (tmp > r.ddl || r.com > w.cap)
+				// if (tmp > r.ddl)
+				// {
+				// 	loginsertion <<"ddl&cap false S.size()"<< tmp << " " << r.ddl <<"  "<<picked[i-1]<<" "<<r.com << "\n";
+				// 	continue;
+				// }
+				// opt = tmp;
+				// if(opt<delta){
+				// 	loginsertion <<"update delta"<< opt << " " << i <<"  "<<j<< "\n";
+				// 	delta = opt, optimanl_i = i, optimanl_j = j;
+				// }
 			}
 			else{
 
-				if(i == 0){ // arrival time r.s after inserting it 
+				if(i == 0){ // arrival time r.s after inserting it
 					tmp = w.tim + tree.tdsp(w.pid, r.s, w.tim,false);
+					loginsertion << "r.s  tree.tdsp(" << w.pid << "," << r.s <<"): " << tmp << "\n";
 					numOfTDSP++;
-					if(w.num+r.com > w.cap){continue;} 
 				}else
-				{	
+				{
+
 					tmp = reach[i-1] + tree.tdsp(Pos(schedule[i-1]), r.s, reach[i-1],false);
+					loginsertion << "r.s  tree.tdsp(" << schedule[i-1] << "," << r.s <<"): " << tmp << "\n";
 					numOfTDSP++;
-					if(picked[i-1]+r.com > w.cap){continue;}
 				}
 
 				if(i == j){ //case 2:  i==j
 					tmp += tree.tdsp(r.s, r.e, tmp,false);
-					numOfTDSP++;
+					loginsertion << "r.e  tree.tdsp(" << r.s << "," << r.e <<"): " << tmp << "\n";
+					numOfTDSP++;				
 					if(tmp > r.ddl)
 					{
-						// //////////////////////////////////////////////
-						// cout << "i==j one" << endl;
-						// cout << tmp << " " << r.ddl << endl;
-						// //////////////////////////////////////////////
+						loginsertion <<"ddl false(r.e)"<< tmp << " " << r.ddl << "\n";
 						continue;
 					}
 					tmp += tree.tdsp(r.e, Pos(schedule[i]), tmp,false);
+					loginsertion << "schedule[i]  tree.tdsp(" << r.e << "," << schedule[i] <<"): " << tmp << "\n";
 					numOfTDSP++;
 					if (tmp <= ddl[i])
 					{
 						opt = function_arrival(w, i,schedule.size() - 1, tmp);
+						loginsertion << "obj  function_arrival(" << schedule[i] << "," << schedule[schedule.size()-1] <<"): " << tmp << " "<< opt << "\n";
 						if(opt < delta){
+							loginsertion <<"update delta"<< opt << " " << i <<"  "<<j<< "\n";
 							delta = opt, optimanl_i = i, optimanl_j = j; 							
 						}
-					}else
-					{
-						// //////////////////////////////////////////////
-						// cout << "i==j two" << endl;
-						// cout << tmp << " " << ddl[i] << endl;
-						// //////////////////////////////////////////////
-						continue;
 					}
+					// else
+					// {
+					// 	loginsertion <<"ddl false (i):  "<< schedule[i] << " " << tmp << " " << ddl[i] <<  "\n";
+					// }
 				
 
 				}else //case 3,4: i and j in general ;i in general, j==w.s.size();
 				{
+
 					tmp += tree.tdsp(r.s, Pos(schedule[i]), tmp,false);
+					loginsertion << "schedule[i]  tree.tdsp(" << r.s << "," << schedule[i] <<"): " << tmp << "\n";
 					numOfTDSP++;
 
-					if (tmp <= ddl[i]){
+					if (tmp <= ddl[i]){					
+						
+						// auto s1 = w.FunctionTimesegments[i][j-1-i].f->begin();
+						// while (s1 != w.FunctionTimesegments[i][j-1-i].f->end())
+						// {
+						// 	cout << s1->t << " " << s1->w <<"; ";
+						// 	s1 ++;
+						// }
+						// cout <<endl;						
 						double arrj_1 = function_arrival(w,i,j-1, tmp);
+						loginsertion << "schedule[j-1]  function_arrival(" << schedule[i] << "," << schedule[j-1] <<"): " << tmp << " " << arrj_1 << "\n";
+
 						tmp  = arrj_1 + tree.tdsp(Pos(schedule[j-1]), r.e, arrj_1,false);
+						loginsertion << "r.e  tree.tdsp(" << schedule[j-1] << "," << r.e <<"): " << tmp << "\n";
 						numOfTDSP++;
 						if(tmp <= r.ddl){
 							if (j == w.S.size())
@@ -653,49 +691,44 @@ void try_insertion(Worker &w, int rid, double &delta, int &optimanl_i, int &opti
 									opt = tmp;
 								}else
 								{
-									// //////////////////////////////////////////////
-									// cout << "i and j in general one " << endl;
-									// cout << tmp << " " << r.ddl<< endl;
-									// //////////////////////////////////////////////								
+									loginsertion <<"ddl false (r.e):"<<tmp<< " " << r.ddl << "\n";							
 									continue;
 								}
 							
-							}else{
+							}
+							else
+							{
 								tmp += tree.tdsp(r.e, Pos(schedule[j]), tmp,false); 
+								loginsertion << "schedule[j]  tree.tdsp(" << r.e << "," << schedule[j] <<"): " << tmp << "\n";							
 								numOfTDSP++;
+
 								if (tmp <= ddl[j])
 								{
 									opt = function_arrival(w, j,schedule.size()-1, tmp);		
 								}else
 								{
-									// //////////////////////////////////////////////
-									// cout << "i and j in general two " << endl;
-									// cout << tmp << " " << ddl[j]<< endl;
-									// //////////////////////////////////////////////	
+									loginsertion <<"ddl false(j):"<<j<<" "<<tmp<< " " << ddl[j] << "\n";
 									continue;
 								}
 														
 							}
+							
+							if (opt < delta)
+							{
+								loginsertion <<"update delta"<< opt << " " << i <<"  "<<j<< "\n";
+								delta = opt, optimanl_i = i, optimanl_j = j;
+							}
+							
 						}
 						else
 						{
-							// //////////////////////////////////////////////
-							// cout << "i and j in general three " << endl;
-							// cout << tmp << " " << r.ddl<< endl;
-							// //////////////////////////////////////////////	
+							loginsertion <<"ddl false (r.e):"<<tmp<< " " << r.ddl << "\n";
 							continue;
 						}
-
-						if(opt < delta){
-							delta = opt, optimanl_i = i, optimanl_j = j; 							
-						}	
 											
 					}else
 					{
-						// //////////////////////////////////////////////
-						// cout << "i and j in general four " << endl;
-						// cout << tmp << " " <<ddl[i]<< endl;
-						// //////////////////////////////////////////////	
+						loginsertion <<"ddl false (i):" <<schedule[i]<<" "<<tmp<< " " << ddl[i] << "\n";
 						continue;
 					}	
 				}				
@@ -720,7 +753,7 @@ void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 		{
 			loginsertion << w.S[k] << " ";
 		}
-		loginsertion << "\n" ;
+		loginsertion << "\n" ;	
 		for (int k = 0; k < w.reach.size(); k++)
 		{
 			loginsertion << w.reach[k] << " ";
@@ -816,9 +849,19 @@ void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 		loginsertion << w.S[k] << " ";
 	}
 	loginsertion << "\n" ;
+	for (int k = 0; k < w.S.size(); k++)
+	{
+		loginsertion << w.picked[k] << " ";
+	}
+	loginsertion << "\n" ;	
 	for (int k = 0; k < w.reach.size(); k++)
 	{
 		loginsertion << w.reach[k] << " ";
+	}
+	loginsertion << "\n" ;
+	for (int k = 0; k < w.reach.size(); k++)
+	{
+		loginsertion << w.ddl[k] << " ";
 	}
 	loginsertion << "\n" ;
 
@@ -837,9 +880,19 @@ void insertion(Worker &w, int rid, int wid, int optimal_i, int optimal_j){
 		loginsertion << w.S[k] << " ";
 	}
 	loginsertion << "\n" ;
+	for (int k = 0; k < w.S.size(); k++)
+	{
+		loginsertion << w.picked[k] << " ";
+	}
+	loginsertion << "\n" ;	
 	for (int k = 0; k < w.reach.size(); k++)
 	{
 		loginsertion << w.reach[k] << " ";
+	}
+	loginsertion << "\n" ;
+	for (int k = 0; k < w.reach.size(); k++)
+	{
+		loginsertion << w.ddl[k] << " ";
 	}
 	loginsertion << "\n" ;
 	loginsertion << "------------------------------------" << "\n";
@@ -880,7 +933,6 @@ void updateDriverArr(Worker& w){
 		}
 	}
 
-	int funmemory = 0;
 	for (int x = 0; x < w.S.size(); ++x)
 	{
 
@@ -893,36 +945,20 @@ void updateDriverArr(Worker& w){
 			}
 			else if (y == x+1)
 			{
-				tree.PLCst(Pos(schedule[y-1]), Pos(schedule[y]), reach[y-1], TMAX, PLFy);
-				numofTDSPInitial++;
+				//tree.PLCst(Pos(schedule[y-1]), Pos(schedule[y]), reach[y-1], TMAX, PLFy);
+				tree.PLCst(Pos(schedule[y-1]), Pos(schedule[y]), 0, TMAX, PLFy);
 				if(y == x+1){
-					FunctionS.push_back(PLFy);
-
-					auto s1 = PLFy.f->begin();
-					while (s1 < PLFy.f->end())
-					{
-						funmemory += sizeof(s1->t);
-						funmemory += sizeof(s1->w);
-						s1++;
-					}
-					
+					FunctionS.push_back(PLFy);					
 				}				
 			}else
 			{
 				
-				tree.PLCst(Pos(schedule[y-1]), Pos(schedule[y]), reach[y-1], TMAX, PLFy);
+				//tree.PLCst(Pos(schedule[y-1]), Pos(schedule[y]), reach[y-1], TMAX, PLFy);
+				tree.PLCst(Pos(schedule[y-1]), Pos(schedule[y]), 0, TMAX, PLFy);
 				
 				PLF PLFxy;
 				PLFy.compound(FunctionS[FunctionS.size()-1],PLFxy,Pos(schedule[y-1]));
 				FunctionS.push_back(PLFxy);
-				
-				auto s1 = PLFxy.f->begin();
-				while (s1 < PLFxy.f->end())
-				{
-					funmemory += sizeof(s1->t);
-					funmemory += sizeof(s1->w);
-					s1++;
-				}
 			}
 		}
 		FunctionTimesegments.push_back(FunctionS);		
@@ -970,6 +1006,52 @@ void updateDriverArr(Worker& w){
 			ddl.insert(ddl.begin(), opt);			
 		}
 	}
+
+	// // //according reach&ddl to segment the F function
+	for (int x = 0; x < schedule.size(); x++)
+	{
+		for (int y = x+1; y < schedule.size(); y++)
+		{
+			double arr,d;
+			arr = reach[x], d = ddl[y];	
+
+			while ((FunctionTimesegments[x][y-x].f->begin()+1) -> t < arr & FunctionTimesegments[x][y-x].f->size() >= 3)
+			{
+				FunctionTimesegments[x][y-x].f->erase(FunctionTimesegments[x][y-x].f->begin());
+			}
+			double t_, w_;
+			auto it1 = FunctionTimesegments[x][y-x].f->begin();
+			auto it2 = it1+1;
+			double slop = (it2->w - it1->w)/(it2->t - it1->t);
+			it1->w = slop*(arr - it1->t) + it1->w;
+			it1->t = arr;
+
+			int s = FunctionTimesegments[x][y-x].f->size() - 1;
+			while ((FunctionTimesegments[x][y-x].f->begin() + s-1) ->t > d & FunctionTimesegments[x][y-x].f->size() >= 3 )
+			{
+				FunctionTimesegments[x][y-x].f->erase(FunctionTimesegments[x][y-x].f->begin() + s);
+				s--;
+			}	
+		}
+		
+	}
+
+	// calculate memory size of F
+	int funmemory = 0;
+	for (int x = 0; x < schedule.size(); x++)
+	{
+		for (int y = x+1; y < schedule.size(); y++)
+		{
+			auto s1 = FunctionTimesegments[x][y-x].f->begin();
+			while (s1 < FunctionTimesegments[x][y-x].f->end())
+			{
+				funmemory += sizeof(s1->t);
+				funmemory += sizeof(s1->w);
+				s1++;
+			}			
+		}
+	}
+
 
 	vector<int>& picked = w.picked;
 	picked.clear();
