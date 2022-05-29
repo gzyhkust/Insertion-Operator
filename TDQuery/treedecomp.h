@@ -31,7 +31,9 @@ struct TreeNode {
     map<unsigned int, PLF> edges;
 
     map<unsigned int, PLF> rev_edges;
- };
+
+    map<unsigned int, PLF> labels;
+};
 
 vector<string> split (string s, string delimiter) {
     size_t pos_start = 0, pos_end, delim_len = delimiter.length();
@@ -115,53 +117,33 @@ class TDTree
 
     ///////////////////////////////////////////////////                 ///////////////////////////////////////////////////
 
-
-    void load_graph() 
+    void load_graph_zy()
     {
         clock_t tbegin, tend;
         tbegin = clock();
 
-        ifstream readgraph;
-        readgraph.open(tgrapgh_path.c_str());
-        if (!readgraph.is_open()) {
-            printf("%s does not exist\n", tgrapgh_path.c_str());
-            exit(0);
-        }
-        readgraph >> n >> m;
+        ifstream readgraph(tgrapgh_path);
+        assert(readgraph.is_open());
+        int a,b;
+        readgraph >> n >> m >> a >> b;
         cout << "vertexes: " << n << " edges: " << m <<endl;
         graph.resize(n);
 
-        string line;
-        string delimiter = " ";
-        getline(readgraph, line);
-        while(getline(readgraph, line))
-        {
-            NodeId sid;
+        int vs, vt, weight_piece_num;
+        while (readgraph >> vs >> vt >> weight_piece_num) 
+        {//input edges
             vEdge ve;
-
-            vector<string> edge = split(line, delimiter);
-            sid = stoi(edge[0]);
-            ve.dst = stoi(edge[1]);
-            int numInterpolation = stoi(edge[2]);
-
-            string weightline;
-            getline(readgraph, weightline);
-            vector<string> weightsstring = split(weightline, delimiter);
-            int i = 0;
-            while (i < weightsstring.size()-1)
+            ve.dst = vt;
+            for (int i = 0; i < weight_piece_num; i++)
             {
-                double t = stod(weightsstring.at(i));
-                double w = stod(weightsstring.at(i+1));
+                double t,w;
+                readgraph >> t >> w;
                 Segment seg(t,w);
                 ve.weights.f->push_back(seg);
-                //cout << " --------- " << endl;
-                i = i + 2;
             }
-
-            graph[sid].push_back(ve);
+            
+            graph[vs].push_back(ve);
         }
-
-        readgraph.close();
 
         tend = clock();
         cout << "Finish loading graph \t time cost: " + to_string((tend - tbegin) / CLOCKS_PER_SEC) + "s" << endl;
@@ -177,8 +159,7 @@ class TDTree
         //     }
             
         // }
-        // cout << "==========================report end======================" << endl;
-        
+        // cout << "==========================report end======================" << endl;        
     }
 
     void report() 
@@ -534,7 +515,9 @@ class TDTree
                     //cout << "build shortcuts between: " << ivid << " " << jvid << endl;
                     
                     PLF PLFij, PLFji;
-                    shortcuts[ivid][vid].compound(shortcuts[vid][jvid],PLFij,vid);
+                    // shortcuts[ivid][vid].compound(shortcuts[vid][jvid],PLFij,vid);
+                    // shortcuts[jvid][vid].compound(shortcuts[vid][ivid],PLFji,vid);
+                    shortcuts[vid][jvid].compound(shortcuts[ivid][vid],PLFij,vid);
                     shortcuts[jvid][vid].compound(shortcuts[vid][ivid],PLFji,vid);
                     if (shortcuts[ivid].find(jvid) == shortcuts[ivid].end())
                     {
@@ -652,7 +635,7 @@ class TDTree
                 //cout << tnodes[vid].edges[i] << " &&&&&&&&&&&&&&&& " << endl;
                 //tnodes[vid].edges.insert(std::move(v.idx(i)));
                 // reverse
-                tnodes[i].rev_edges[vid] = v[i];
+                // tnodes[i].rev_edges[vid] = v[i];
             }
             if (tnodes[vid].edges.size()==0) {
                 //cout << "if (tnodes[vid].edges.size()==0)" << endl; 
@@ -698,7 +681,6 @@ class TDTree
         }
     }
 
-
     int exist_in_tnode(NodeId id, NodeId i)
     {
         map<unsigned int, PLF>::iterator it;
@@ -737,40 +719,61 @@ class TDTree
                 vertexes.push_back(it->first);
             }
         }
+        vertexes.push_back(p);
         return vertexes;  
     }
 
-
-    map<NodeId, PLF> Path_computing_bottom2up(NodeId bottom, NodeId up)
+    map<NodeId, PLF> Path_computing_bottom2up_zy(NodeId bottom, NodeId up)
     {
         map<unsigned int, PLF> results;
         NodeId s = bottom;
         if (bottom != up)
         {
             map<unsigned int, PLF> dismap = tnodes[bottom].edges;
-            map<unsigned int, PLF>::iterator dismapit;
             NodeId anc = tnodes[bottom].pnodeid;
             while (anc!=up)
             {
-                // map<unsigned int, PLF> tmp;
-                // for (auto &e:tnodes[anc].edges)
-                // {
-                //     distmap[e.first].combine(distmap[anc] + e.second);
-                // }
                 vector<NodeId> uVertex = uVertexes(s,anc);
                 vector<NodeId> vVetex = vVetexes(s, anc);
 
+                // cout << " ********************************************* " << endl;
+                // cout << "check node: " << anc << endl;           
+
                 for (auto &uid : uVertex)
                 {
-                    PLF plfvu;
-                    dismap[anc].compound(tnodes[anc].edges[uid],plfvu,anc);
-                    dismap[uid] = plfvu;
-                }
-                for (auto &vid : vVetex)
-                {
-                    PLF plfvu;
-                    dismap[anc].compound(tnodes[anc].edges[vid],plfvu,anc);
-                    dismap[vid].minimize(plfvu);
+                    //cout << "new vertex " << uid << endl;
+                    for (auto &vid : vVetex)
+                    {
+                        PLF plfvu;
+                        if (exist_in_tnode(uid, vid) == 0)
+                        {
+                            continue;
+                        }
+                        
+                        // cout << "compound " << vid << "->" << uid << endl;
+                        // cout << tnodes[vid].edges[uid] << " compound to :" << dismap[vid] << endl;
+                        tnodes[vid].edges[uid].compound(dismap[vid],plfvu,vid);
+                    
+                        map<unsigned int, PLF>::iterator it;
+                        it = dismap.find(uid);
+                        if(it == dismap.end())
+                        {
+                            // cout << "first compound: " << endl;
+                            // cout << plfvu << endl;
+                            dismap[uid] = plfvu;
+                        } 
+                        else
+                        {
+                            // cout << "anpther compound: " << endl;
+                            // cout << dismap[uid] << endl;
+                            // cout << plfvu << endl;
+                            dismap[uid].minimize(plfvu);
+
+                        }
+                    }
+                    // cout << "dismap[uid] ->" << uid << endl;
+                    // cout << dismap[uid] << endl;
+                    // cout << " --------------------------------- " << endl;
                 }
 
                 s = anc;
@@ -780,9 +783,7 @@ class TDTree
             for (map<unsigned int, PLF>::iterator it = dismap.begin(); it!=dismap.end(); ++it)
             {
                 results[it->first] = it->second;
-            } 
-            // for (auto &p:distmap)
-            //     result.emplace_back(p); 
+            }
         }
         else
         {
@@ -792,77 +793,20 @@ class TDTree
             } 
         }
 
-        return results;    
+        return results;
     }
 
-
-    map<NodeId, PLF> Path_computing_up2bottom(NodeId bottom, NodeId up)
-    {
-        map<unsigned int, PLF> results;
-
-        NodeId s = bottom;
-        if (bottom != up)
-        {
-            map<unsigned int, PLF> dismap;
-            //cout << "tnodes[bottom].rev_edges: " << tnodes[bottom].rev_edges.size() << endl;
-            for (auto &p:tnodes[bottom].edges)
-            {
-                dismap[p.first] = tnodes[p.first].rev_edges[bottom];
-                //dismap[p.first] = tnodes[bottom].rev_edges[p.first];
-                //cout << "p.first: " << p.first<< endl;
-                //cout << "tnodes[bottom].rev_edges: " << tnodes[p.first].rev_edges.size() << endl;
-            }
-            NodeId anc = tnodes[bottom].pnodeid;
-
-            while (anc != up)
-            {
-                vector<NodeId> uVertex = uVertexes(s,anc);
-                vector<NodeId> vVetex = vVetexes(s, anc); 
-                for (auto &uid : uVertex)
-                {
-                    PLF plfvu;
-                    //cout << "PLF plfvu;" << endl;
-
-                    //tnodes[anc].rev_edges[uid].compound(dismap[anc],plfvu,anc);
-                    tnodes[uid].rev_edges[anc].compound(dismap[anc],plfvu,anc);
-                    //cout << "tnodes[anc].rev_edges[uid].compound" << endl;
-                    dismap[uid] = plfvu;
-                }
-
-                s = anc;
-                anc = tnodes[anc].pnodeid;               
-            }
-            
-            for (map<unsigned int, PLF>::iterator it = dismap.begin(); it!=dismap.end(); ++it)
-            {
-                results[it->first] = it->second;
-            }
-        }
-        else
-        {
-            //for (map<unsigned int, PLF>::iterator it = tnodes[up].rev_edges.begin(); it!=tnodes[up].rev_edges.end(); ++it)
-            for (map<unsigned int, PLF>::iterator it = tnodes[up].edges.begin(); it!=tnodes[up].edges.end(); ++it)
-            {
-                results[it->first] = tnodes[bottom].rev_edges[it->first];
-            } 
-        }
-
-        return results;   
-  
-         
-    }
-
-
-    vector<PLF> query(NodeId s, NodeId t) 
+    //vector<PLF> query(NodeId s, NodeId t) 
+    PLF query(NodeId s, NodeId t) 
     {
         vector<PLF> result;
         auto lca = qLCA(s, t);
-        auto s_result = Path_computing_bottom2up(s, lca.first);
-        auto t_result = Path_computing_up2bottom(t, lca.second);
+        //cout << lca.first << " " << lca.second << endl;
+        //auto s_result = Path_computing_bottom2up(s, lca.first);
+        auto s_result = Path_computing_bottom2up_zy(s, lca.first);
+        auto t_result = Path_computing_bottom2up_zy(t, lca.second);
         //auto t_result = Path_computing_bottom2up(t, lca.second);
-
-        // cout << lca.first << " " << lca.second << endl;
-        // cout << "s_result : " << endl;
+        // cout << "s_result : " << s_result.size() <<endl;
         // for (map<unsigned int, PLF>::iterator it = s_result.begin(); it!=s_result.end(); ++it)
         // {
         //     cout << it->first <<" ,";
@@ -874,50 +818,46 @@ class TDTree
         //     cout << it->first <<" ,";
         //     cout << it->second << endl;
         // }
-
-        for (map<NodeId, PLF>::iterator its = s_result.begin(); its!=s_result.end(); ++its)
-        {
-            map<NodeId, PLF>::iterator itt = t_result.find(its->first);
-            if (itt!=t_result.end())
-            {
-                PLF plfvu;
-                s_result[its->first].compound(t_result[its->first],plfvu,its->first);
-                result.push_back(plfvu);                
-            }
-            
-        }
-
-
-
-
-
-        // vector<NodeId> vids;
-        // vids.push_back(lca.first);
-        // for (map<unsigned int, PLF>::iterator it = tnodes[lca.first].edges.begin(); it!=tnodes[lca.first].edges.end(); ++it)
-        // {
-        //     vids.push_back(it->first);
-        // }
-
-
-        // for (auto &vid : tnodes[lca.first].cnodeid)
-        // {
-        //     vids.push_back(vid);
-        // }
         
-        // for (auto &vid : tnodes[lca.first].cnodeid)
+        PLF result_;
+        if (lca.first == t)
+        {
+            //result.push_back();
+            result_ = s_result[t];
+        }
+        else if (lca.first == s)
+        {
+            //result.push_back();
+            result_ = s_result[s];
+        }
+        else
+        {
+            PLF plfvu;
+            t_result[lca.first].compound(s_result[lca.first],plfvu,lca.first);
+            result_ = plfvu;
+        }
+        return result_;
+        
+        
+        
+        // for (map<NodeId, PLF>::iterator its = s_result.begin(); its!=s_result.end(); ++its)
         // {
-        //     PLF plfvu;
-        //     s_result[vid].compound(t_result[vid],plfvu,vid);
-        //     result.push_back(plfvu);
+        //     cout << its->first << endl;
+        //     map<NodeId, PLF>::iterator itt = t_result.find(its->first);
+        //     if (itt!=t_result.end())
+        //     {
+        //         PLF plfvu;
+        //         s_result[its->first].compound(t_result[its->first],plfvu,its->first);
+        //         result.push_back(plfvu);                
+        //     }
+            
         // }
-        return result;
+        // return result;
     }
 
 
     void creat_index() 
     {
-        //clock_t tbegin, tend;
-        //tbegin = clock();
 
         //graph_reduction();
         graph_reduction_zy();
@@ -927,7 +867,7 @@ class TDTree
 
     void Init() 
     {
-        load_graph();
+        load_graph_zy();
 
         vector<int> dgr;
 
@@ -952,50 +892,117 @@ class TDTree
         clock_t tend = clock();
         cout << "Finish building time cost: " + to_string((tend - tbegin) / CLOCKS_PER_SEC) + "s" << endl;
 
-
-        vector<int> cnodeNum;
-        vector<int> pNum;
-        int avg_cnodenum=0, avgxnodenum=0;
-        int maxheight = -100;
-        for (int i = 0; i < tnodes.size(); i++)
+        clock_t querybegin = clock();
+        int num = 0;        
+        for (int x = 0; x < 1000; x++)
         {
-            //cout << tnodes[i].height << endl;
-            if(tnodes[i].height > maxheight)
+            int i = rand()%400000;
+            int j = rand()%400000;
+            if (i == j)
             {
-                maxheight = tnodes[i].height;
+                j++;
             }
-
-            cnodeNum.push_back(tnodes[i].cnodeid.size());
-
-            int psize = 0;
-            for (map<unsigned int, PLF>::iterator it = tnodes[i].edges.begin(); it!=tnodes[i].edges.end(); ++it)
-            {
-                psize++;
-            }
-            
-            pNum.push_back(psize);    
-
-            if (!tnodes[i].cnodeid.empty())
-            {
-                avg_cnodenum += tnodes[i].cnodeid.size();
-                //cout << tnodes[i].cnodeid.size() << endl;
-            }
-            avgxnodenum += tnodes[i].edges.size();    
+            //cout << i << " " << j << endl;
+            PLF result = query(i,j);       
         }
         
-        cout << "maxheight: " << maxheight << endl;
-        auto maxcnodeNum = max_element(cnodeNum.begin(), cnodeNum.end());
-        auto mincnodeNum = min_element(cnodeNum.begin(), cnodeNum.end()); 
-        cout << "conde: " << *maxcnodeNum << " " << *mincnodeNum << endl;       
+        clock_t queryend = clock();
+        cout << "Finish querying time cost: " + to_string((queryend - querybegin) / CLOCKS_PER_SEC) + "s" << endl;                
+        
 
-        auto maxpNum = max_element(pNum.begin(), pNum.end());
-        auto mincpNum = min_element(pNum.begin(), pNum.end());
-        cout << "pNum: " << *maxpNum << " " << *mincpNum << endl;
+        // ofstream of("./result.txt");
+        // of << (tend - tbegin) / CLOCKS_PER_SEC << "\n"; 
 
-        cout << " avg_cnodenum " << avg_cnodenum/tnodes.size() << "  " << " avgxnodenum " << avgxnodenum/tnodes.size() <<endl;
+        // ************************ debug query
+        // cout << "============================= check shorcuts================================" << endl;
+        // cout << "7->5" << endl;
+        // cout << tnodes[7].edges[5] << endl;
+
+        // cout << " ---------------------------- " << endl;
+        // //vector<PLF> result1 = query(7,8);
+        // cout << 7 << " " << 2 << endl;
+        // vector<PLF> result1 = query(7,2);
+
+        // cout << " ****************************** " << endl;
+        // cout << 7 << " " << 0 << endl;
+        // //vector<PLF> result2 = query(7,0);
+        // PLF result2 = query(7,0);
+
+        // cout << " ****************************** " << endl;
+        // cout << 7 << " " << 8 << endl;
+        // //vector<PLF> result3 = query(7,8);        
+        // PLF result3 = query(7,8);
+        // cout << result3 << endl;     
+
+        // for (int i = 0; i < 9; i++)
+        // {
+        //     for (int j = 0; j < 9; j++)
+        //     {
+        //         if(i == j)
+        //         {
+        //             continue;
+        //         }
+        //         cout << i << " " << j << endl;
+        //         cout << query(i,j) << endl;
+        //         cout << "--------------------------------------" << endl;
+        //     }
+            
+        // }
+        
+
+        // cout << " ****************************** " << endl;
+        // cout << 7 << " " << 4 << endl;
+        // vector<PLF> result3 = query(7,4);
+        //cout << tnodes[7].edges[5] << endl;
+        // ************************
+
+
+
+        // vector<int> cnodeNum;
+        // vector<int> pNum;
+        // int avg_cnodenum=0, avgxnodenum=0;
+        // int maxheight = -100;
+        // for (int i = 0; i < tnodes.size(); i++)
+        // {
+        //     //cout << tnodes[i].height << endl;
+        //     if(tnodes[i].height > maxheight)
+        //     {
+        //         maxheight = tnodes[i].height;
+        //     }
+
+        //     cnodeNum.push_back(tnodes[i].cnodeid.size());
+
+        //     int psize = 0;
+        //     for (map<unsigned int, PLF>::iterator it = tnodes[i].edges.begin(); it!=tnodes[i].edges.end(); ++it)
+        //     {
+        //         psize++;
+        //     }
+            
+        //     pNum.push_back(psize);    
+
+        //     if (!tnodes[i].cnodeid.empty())
+        //     {
+        //         avg_cnodenum += tnodes[i].cnodeid.size();
+        //         //cout << tnodes[i].cnodeid.size() << endl;
+        //     }
+        //     avgxnodenum += tnodes[i].edges.size();    
+        // }
+        
+        // cout << "maxheight: " << maxheight << endl;
+        // auto maxcnodeNum = max_element(cnodeNum.begin(), cnodeNum.end());
+        // auto mincnodeNum = min_element(cnodeNum.begin(), cnodeNum.end()); 
+        // cout << "conde: " << *maxcnodeNum << " " << *mincnodeNum << endl;       
+
+        // auto maxpNum = max_element(pNum.begin(), pNum.end());
+        // auto mincpNum = min_element(pNum.begin(), pNum.end());
+        // cout << "pNum: " << *maxpNum << " " << *mincpNum << endl;
+
+        // cout << " avg_cnodenum " << avg_cnodenum/tnodes.size() << "  " << " avgxnodenum " << avgxnodenum/tnodes.size() <<endl;
+
         // ofstream of("results.txt");
         // of << (tend - tbegin) / CLOCKS_PER_SEC << "\n";
         // of << idxsiz << "\n";
+
 
         //report();
 
@@ -1005,8 +1012,8 @@ class TDTree
         // cout << endl;
 
         // vector<PLF> result2 = query(2,3);
-        clock_t querybegin = clock();
-        int num = 0;        
+        // clock_t querybegin = clock();
+        // int num = 0;        
         // for (int i = 1; i < 10; i++)
         // {
         //     for (int j = 40000; j < 40010; j++)
@@ -1041,12 +1048,12 @@ class TDTree
         // cout << "Finish querying time cost: " + to_string((queryend - querybegin) / CLOCKS_PER_SEC) + "s" << endl;                
         
 
-        int Xnum = 0;
-        for (int i = 0; i < tnodes.size(); i++)
-        {
-            Xnum+=tnodes[i].edges.size();
-        }
-        cout << Xnum << " " << tnodes.size() << endl;    
+        // int Xnum = 0;
+        // for (int i = 0; i < tnodes.size(); i++)
+        // {
+        //     Xnum+=tnodes[i].edges.size();
+        // }
+        // cout << Xnum << " " << tnodes.size() << endl;    
         
 
 
@@ -1555,4 +1562,201 @@ class TDTree
     //             tnodes[a].height = tnodes[v].height + 1;
     //         }
     //     }
+    // }
+
+    // void load_graph() 
+    // {
+    //     clock_t tbegin, tend;
+    //     tbegin = clock();
+
+    //     ifstream readgraph;
+    //     readgraph.open(tgrapgh_path.c_str());
+    //     if (!readgraph.is_open()) {
+    //         printf("%s does not exist\n", tgrapgh_path.c_str());
+    //         exit(0);
+    //     }
+    //     readgraph >> n >> m;
+    //     cout << "vertexes: " << n << " edges: " << m <<endl;
+    //     graph.resize(n);
+
+    //     string line;
+    //     string delimiter = " ";
+    //     getline(readgraph, line);
+    //     while(getline(readgraph, line))
+    //     {
+    //         NodeId sid;
+    //         vEdge ve;
+
+    //         vector<string> edge = split(line, delimiter);
+    //         sid = stoi(edge[0]);
+    //         ve.dst = stoi(edge[1]);
+    //         int numInterpolation = stoi(edge[2]);
+
+    //         string weightline;
+    //         getline(readgraph, weightline);
+    //         vector<string> weightsstring = split(weightline, delimiter);
+    //         int i = 0;
+
+    //         while (i < weightsstring.size()-1)
+    //         {
+    //             double t = stod(weightsstring.at(i));
+    //             double w = stod(weightsstring.at(i+1));
+    //             Segment seg(t,w);
+    //             ve.weights.f->push_back(seg);
+    //             i = i + 2;
+    //         }
+
+    //         graph[sid].push_back(ve);
+    //     }
+
+    //     readgraph.close();
+
+    //     tend = clock();
+    //     cout << "Finish loading graph \t time cost: " + to_string((tend - tbegin) / CLOCKS_PER_SEC) + "s" << endl;
+    //     // cout << "============================report graph========================" << endl;
+    //     // for (int i = 0; i < graph.size(); i++)
+    //     // {
+    //     //     for (int j = 0; j < graph[i].size(); j++)
+    //     //     {
+    //     //         auto &e = graph[i][j];
+    //     //         cout << i << " " << e.dst << endl;
+    //     //         cout << e.weights << endl;
+    //     //         cout << " -------------------------------- " << endl;
+    //     //     }
+            
+    //     // }
+    //     // cout << "==========================report end======================" << endl;
+        
+    // }
+
+
+        // map<NodeId, PLF> Path_computing_bottom2up(NodeId bottom, NodeId up)
+    // {
+    //     map<unsigned int, PLF> results;
+    //     NodeId s = bottom;
+    //     if (bottom != up)
+    //     {
+    //         map<unsigned int, PLF> dismap = tnodes[bottom].edges;
+    //         NodeId anc = tnodes[bottom].pnodeid;
+    //         while (anc!=up)
+    //         {
+    //             vector<NodeId> uVertex = uVertexes(s,anc);
+    //             vector<NodeId> vVetex = vVetexes(s, anc);
+
+    //             cout << " ********************************************* " << endl;
+    //             cout << "check node: " << anc << endl;
+    //             // cout << "uVertexes: ";
+    //             // for (auto &uid : uVertex)
+    //             // {
+    //             //     cout << uid << ",";
+    //             // }
+    //             // cout << endl;
+    //             // cout << "vVetexes: ";
+    //             // for (auto &vid : vVetex)
+    //             // {
+    //             //     cout << vid << ",";
+    //             // }
+    //             // cout << endl;            
+
+    //             for (auto &uid : uVertex)
+    //             {
+    //                 PLF plfvu;
+    //                 dismap[anc].compound(tnodes[anc].edges[uid],plfvu,anc);
+    //                 dismap[uid] = plfvu;
+    //                 cout << " uVertex: " << uid << endl;
+    //                 cout << "source->" << anc << " compound to " << anc << "->" << uid << endl;
+    //                 cout << dismap[anc] << " compound to " << tnodes[anc].edges[uid] << endl;
+    //                 cout << "compouned: source->"<< uid <<" " << plfvu << endl;
+    //             }
+    //             cout << " U####################V " << endl;
+    //             for (auto &vid : vVetex)
+    //             {
+    //                 PLF plfvu;
+    //                 dismap[anc].compound(tnodes[anc].edges[vid],plfvu,anc);
+                    
+    //                 cout << " vVertex: " << vid << endl;
+    //                 cout << "source->" << anc << " compound to " << anc << "->" << vid << endl;
+    //                 cout << dismap[anc] << " compound to " << tnodes[anc].edges[vid] << endl;
+    //                 cout << "compouned: source->"<< vid <<" " << plfvu << endl;
+    //                 cout << "origin: source->"<< vid << dismap[vid] << endl;
+
+    //                 dismap[vid].minimize(plfvu);
+    //                 cout << dismap[vid] << endl;
+    //             }
+
+    //             s = anc;
+    //             anc = tnodes[anc].pnodeid;
+    //         }
+
+    //         for (map<unsigned int, PLF>::iterator it = dismap.begin(); it!=dismap.end(); ++it)
+    //         {
+    //             results[it->first] = it->second;
+    //         }
+    //     }
+    //     else
+    //     {
+    //         for (map<unsigned int, PLF>::iterator it = tnodes[up].edges.begin(); it!=tnodes[up].edges.end(); ++it)
+    //         {
+    //             results[it->first] = it->second;
+    //         } 
+    //     }
+
+    //     return results;    
+    // }
+
+
+    //     map<NodeId, PLF> Path_computing_up2bottom(NodeId bottom, NodeId up)
+    // {
+    //     map<unsigned int, PLF> results;
+
+    //     NodeId s = bottom;
+    //     if (bottom != up)
+    //     {
+    //         map<unsigned int, PLF> dismap;
+    //         //cout << "tnodes[bottom].rev_edges: " << tnodes[bottom].rev_edges.size() << endl;
+    //         for (auto &p:tnodes[bottom].edges)
+    //         {
+    //             dismap[p.first] = tnodes[p.first].rev_edges[bottom];
+    //             //dismap[p.first] = tnodes[bottom].rev_edges[p.first];
+    //             //cout << "p.first: " << p.first<< endl;
+    //             //cout << "tnodes[bottom].rev_edges: " << tnodes[p.first].rev_edges.size() << endl;
+    //         }
+    //         NodeId anc = tnodes[bottom].pnodeid;
+
+    //         while (anc != up)
+    //         {
+    //             vector<NodeId> uVertex = uVertexes(s,anc);
+    //             vector<NodeId> vVetex = vVetexes(s, anc); 
+    //             for (auto &uid : uVertex)
+    //             {
+    //                 PLF plfvu;
+    //                 //cout << "PLF plfvu;" << endl;
+
+    //                 //tnodes[anc].rev_edges[uid].compound(dismap[anc],plfvu,anc);
+    //                 tnodes[uid].rev_edges[anc].compound(dismap[anc],plfvu,anc);
+    //                 //cout << "tnodes[anc].rev_edges[uid].compound" << endl;
+    //                 dismap[uid] = plfvu;
+    //             }
+
+    //             s = anc;
+    //             anc = tnodes[anc].pnodeid;               
+    //         }
+            
+    //         for (map<unsigned int, PLF>::iterator it = dismap.begin(); it!=dismap.end(); ++it)
+    //         {
+    //             results[it->first] = it->second;
+    //         }
+    //     }
+    //     else
+    //     {
+    //         //for (map<unsigned int, PLF>::iterator it = tnodes[up].rev_edges.begin(); it!=tnodes[up].rev_edges.end(); ++it)
+    //         for (map<unsigned int, PLF>::iterator it = tnodes[up].edges.begin(); it!=tnodes[up].edges.end(); ++it)
+    //         {
+    //             results[it->first] = tnodes[bottom].rev_edges[it->first];
+    //         } 
+    //     }
+
+    //     return results;   
+  
+         
     // }
